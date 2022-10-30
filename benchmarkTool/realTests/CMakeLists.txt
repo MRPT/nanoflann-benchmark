@@ -15,7 +15,7 @@ IF(LZ4_LIBRARIES)
     MESSAGE(FATAL_ERROR "Cannot find required LZ4 libraries")
 ENDIF()
 
-set(flann_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/3rdparty/flann/src/cpp")
+set(flann_INCLUDE_DIRS "${CMAKE_BINARY_DIR}/3rdparty/flann/src/cpp")
 include_directories(${flann_INCLUDE_DIRS})
 set(flann_LIBRARIES "${CMAKE_SOURCE_DIR}/build/flann-prefix/src/flann-build/lib/libflann_cpp.so")
 ADD_EXECUTABLE(benchmark_flann_real benchmark_flann_real.cpp)
@@ -23,7 +23,7 @@ TARGET_LINK_LIBRARIES(benchmark_flann_real nanoflann::nanoflann ${flann_LIBRARIE
 ADD_DEPENDENCIES(benchmark_flann_real flann)
 ADD_DEPENDENCIES(benchmarks benchmark_flann_real)
 
-set(fastann_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/3rdparty/fastann")
+set(fastann_INCLUDE_DIRS "${CMAKE_BINARY_DIR}/3rdparty/fastann")
 include_directories(${fastann_INCLUDE_DIRS})
 set(fastann_LIBRARIES "${CMAKE_SOURCE_DIR}/build/fastann-prefix/src/fastann-build/libfastann.so")
 ADD_EXECUTABLE(benchmark_fastann_real benchmark_fastann_real.cpp)
@@ -31,7 +31,7 @@ TARGET_LINK_LIBRARIES(benchmark_fastann_real nanoflann::nanoflann ${fastann_LIBR
 ADD_DEPENDENCIES(benchmark_fastann_real fastann)
 ADD_DEPENDENCIES(benchmarks benchmark_fastann_real)
 
-set(libkdtree_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/3rdparty/libkdtree")
+set(libkdtree_INCLUDE_DIRS "${CMAKE_BINARY_DIR}/3rdparty/libkdtree")
 include_directories(${libkdtree_INCLUDE_DIRS})
 ADD_EXECUTABLE(benchmark_libkdtree_real benchmark_libkdtree_real.cpp)
 set_target_properties(benchmark_nanoflann_real benchmark_flann_real benchmark_fastann_real benchmark_libkdtree_real PROPERTIES FOLDER "RealTests")
