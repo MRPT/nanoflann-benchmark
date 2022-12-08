@@ -155,8 +155,7 @@ template <typename num_t> void kdtree_demo(string &path1, string &path2) {
         resultSet.init(&ret_index, &out_dist_sqr);
         clock_t begin = clock();
         // do a knn search
-        index.findNeighbors(resultSet, &query_pt[0],
-                            nanoflann::SearchParams(10));
+        index.findNeighbors(resultSet, &query_pt[0], {});
         clock_t end = clock();
         elapsed_secs += double(end - begin);
       }

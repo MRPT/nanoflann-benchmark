@@ -1,8 +1,9 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 import sys
 import matplotlib.pyplot as plt
 import subprocess
 import os
+import numpy as np
 
 # calculate mean and standard deviation of an observation
 def cal(MatrixTime, col):
@@ -34,9 +35,9 @@ def plotTime(execPath, numRepetitions, numDivisions):
                 if(processCount==0):
                     xaxis += [int(item)]
             elif(it<2*numDivisions):
-                BuildTime[processCount][it-numDivisions] = [float(item)*1000]
+                BuildTime[processCount][it-numDivisions] = [float(item)*1e6]
             else:
-                QueryTime[processCount][it-2*numDivisions] = [float(item)*1000]
+                QueryTime[processCount][it-2*numDivisions] = [float(item)*1e6]
     BuildTimeFinal = []
     BuildTimeError = []
     QueryTimeFinal = []
@@ -65,24 +66,27 @@ if __name__ == '__main__':
 
     # BUILD TIME PLOTS
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    dir_path = dir_path + '/../../build/benchmarkTool/realTests/'
+    dir_path = dir_path + '/../../build-Release/benchmarkTool/realTests/'
     fig, ax = plt.subplots()
     if(nanoflannFlag):
         xaxis, nanoflannBuildTimeFinal, nanoflannBuildTimeError, nanoflannQueryTimeFinal, nanoflannQueryTimeError = plotTime(dir_path + './benchmark_nanoflann_real' + ' ' + sys.argv[1] + ' ' + sys.argv[2], numRepetitions, numDivisions)
         plt.plot(xaxis, nanoflannBuildTimeFinal, 'r', label='nanoflann', linewidth=3.0)
-        plt.errorbar(xaxis, nanoflannBuildTimeFinal, color='k', yerr=nanoflannBuildTimeError, fmt='o')
+        plt.errorbar(xaxis, nanoflannBuildTimeFinal, color='k', yerr=nanoflannBuildTimeError, fmt='o', capsize=10)
     if(flannFlag):
+        xOff = 1
         xaxis, flannBuildTimeFinal, flannBuildTimeError, flannQueryTimeFinal, flannQueryTimeError = plotTime(dir_path + './benchmark_flann_real' + ' ' + sys.argv[1] + ' ' + sys.argv[2], numRepetitions, numDivisions)
-        plt.plot(xaxis, flannBuildTimeFinal, 'g', label='flann', linewidth=3.0)
-        plt.errorbar(xaxis, flannBuildTimeFinal, color='k', yerr=flannBuildTimeError, fmt='o')
+        plt.plot(list(np.asarray(xaxis)+xOff), flannBuildTimeFinal, 'g', label='flann', linewidth=3.0)
+        plt.errorbar(list(np.asarray(xaxis)+xOff), flannBuildTimeFinal, color='k', yerr=flannBuildTimeError, fmt='o', capsize=10)
     if(fastannFlag):
+        xOff = 2
         xaxis, fastannBuildTimeFinal, fastannBuildTimeError, fastannQueryTimeFinal, fastannQueryTimeError = plotTime(dir_path + './benchmark_fastann_real' + ' ' + sys.argv[1] + ' ' + sys.argv[2], numRepetitions, numDivisions)
-        plt.plot(xaxis, fastannBuildTimeFinal, 'b', label='fastann', linewidth=3.0)
-        plt.errorbar(xaxis, fastannBuildTimeFinal, color='k', yerr=fastannBuildTimeError, fmt='o')
+        plt.plot(list(np.asarray(xaxis)+xOff), fastannBuildTimeFinal, 'b', label='fastann', linewidth=3.0)
+        plt.errorbar(list(np.asarray(xaxis)+xOff), fastannBuildTimeFinal, color='k', yerr=fastannBuildTimeError, fmt='o', capsize=10)
     if(libkdtreeFlag):
+        xOff = 3
         xaxis, libkdtreeBuildTimeFinal, libkdtreeBuildTimeError, libkdtreeQueryTimeFinal, libkdtreeQueryTimeError = plotTime(dir_path + './benchmark_libkdtree_real' + ' ' + sys.argv[1] + ' ' + sys.argv[2], numRepetitions, numDivisions)
-        plt.plot(xaxis, libkdtreeBuildTimeFinal, 'k', label='libkdtree', linewidth=3.0)
-        plt.errorbar(xaxis, libkdtreeBuildTimeFinal, color='k', yerr=libkdtreeBuildTimeError, fmt='o')
+        plt.plot(list(np.asarray(xaxis)+xOff), libkdtreeBuildTimeFinal, 'k', label='libkdtree', linewidth=3.0)
+        plt.errorbar(list(np.asarray(xaxis)+xOff), libkdtreeBuildTimeFinal, color='k', yerr=libkdtreeBuildTimeError, fmt='o', capsize=10)
 
     # plot configurations
     ax.grid(True)
@@ -101,9 +105,10 @@ if __name__ == '__main__':
         label.set_color('k')
         label.set_fontsize('medium')
         
+    plt.yscale("log") # vertical log scale
     plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
     plt.xlabel('Size of point cloud', fontsize=25)
-    plt.ylabel('Time (ms)', fontsize=25)
+    plt.ylabel('Time (μs)', fontsize=25)
     plt.title('kd-tree build time', fontsize=25)
     # Now add the legend with some customizations.
     legend = ax.legend(loc='upper left', shadow=True)
@@ -120,18 +125,22 @@ if __name__ == '__main__':
     # QUERY TIME PLOTS
 
     fig, ax = plt.subplots()
+    plt.yscale("linear")
     if(nanoflannFlag):
         plt.plot(xaxis, nanoflannQueryTimeFinal, 'r', label='nanoflann', linewidth=3.0)
-        plt.errorbar(xaxis, nanoflannQueryTimeFinal, color='k', yerr=nanoflannQueryTimeError, fmt='o')
+        plt.errorbar(xaxis, nanoflannQueryTimeFinal, color='k', yerr=nanoflannQueryTimeError, fmt='o', capsize=10)
     if(flannFlag):
-        plt.plot(xaxis, flannQueryTimeFinal, 'g', label='flann', linewidth=3.0)
-        plt.errorbar(xaxis, flannQueryTimeFinal, color='k', yerr=flannQueryTimeError, fmt='o')
+        xOff = 1
+        plt.plot(list(np.asarray(xaxis)+xOff), flannQueryTimeFinal, 'g', label='flann', linewidth=3.0)
+        plt.errorbar(list(np.asarray(xaxis)+xOff), flannQueryTimeFinal, color='k', yerr=flannQueryTimeError, fmt='o', capsize=10)
     if(fastannFlag):
-        plt.plot(xaxis, fastannQueryTimeFinal, 'b', label='fastann', linewidth=3.0)
-        plt.errorbar(xaxis, fastannQueryTimeFinal, color='k', yerr=fastannQueryTimeError, fmt='o')
+        xOff = 2
+        plt.plot(list(np.asarray(xaxis)+xOff), fastannQueryTimeFinal, 'b', label='fastann', linewidth=3.0)
+        plt.errorbar(xaxis, fastannQueryTimeFinal, color='k', yerr=fastannQueryTimeError, fmt='o', capsize=10)
     if(libkdtreeFlag):
-        plt.plot(xaxis, libkdtreeQueryTimeFinal, 'k', label='libkdtree', linewidth=3.0)
-        plt.errorbar(xaxis, libkdtreeQueryTimeFinal, color='k', yerr=libkdtreeQueryTimeError, fmt='o')
+        xOff = 3
+        plt.plot(list(np.asarray(xaxis)+xOff), libkdtreeQueryTimeFinal, 'k', label='libkdtree', linewidth=3.0)
+        plt.errorbar(xaxis, libkdtreeQueryTimeFinal, color='k', yerr=libkdtreeQueryTimeError, fmt='o', capsize=10)
 
     # plot configurations
     ax.grid(True)
@@ -152,7 +161,7 @@ if __name__ == '__main__':
 
     plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
     plt.xlabel('Size of point cloud', fontsize=25)
-    plt.ylabel('Time (ms)', fontsize=25)
+    plt.ylabel('Time (μs)', fontsize=25)
     plt.title('One 3d query time', fontsize=25)
     # Now add the legend with some customizations.
     legend = ax.legend(loc='upper left', shadow=True)
