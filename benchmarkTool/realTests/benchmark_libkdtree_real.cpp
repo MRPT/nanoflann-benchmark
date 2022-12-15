@@ -94,35 +94,6 @@ typedef KDTree::KDTree<3, triplet,
                        std::pointer_to_binary_function<triplet, size_t, double>>
     tree_type;
 
-// Scan all points from file
-template <typename T>
-vector<triplet> scanPointCloud(unsigned int &N, string file) {
-  ifstream read(file.c_str());
-
-  string temp;
-  getline(read, temp);
-
-  vector<vector<T>> cloud;
-  vector<T> tmp;
-
-  T x, y, z, d;
-  N = 0;
-  while (read >> x >> y >> z >> d) {
-    tmp.resize(3);
-    tmp[0] = x;
-    tmp[1] = y;
-    tmp[2] = z;
-    cloud.push_back(tmp);
-    N++;
-  }
-  vector<triplet> point;
-  for (unsigned int i = 0; i < N; i++) {
-    triplet tmp(cloud[i][0], cloud[i][1], cloud[i][2]);
-    point.push_back(tmp);
-  }
-  return point;
-}
-
 template <typename num_t> void kdtree_demo(string &path1, string &path2) {
   vector<triplet> PcloudS, PcloudT;
   unsigned int N;

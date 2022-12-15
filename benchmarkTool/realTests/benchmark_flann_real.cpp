@@ -36,36 +36,6 @@
 using namespace std;
 using namespace flann;
 
-// Scan all points from file
-template <typename T> Matrix<T> scanPointCloud(unsigned int &N, string file) {
-  ifstream read(file.c_str());
-
-  string temp;
-  getline(read, temp);
-
-  vector<vector<T>> cloud;
-  vector<T> tmp;
-  int dim = 3;
-
-  T x, y, z, d;
-  N = 0;
-  while (read >> x >> y >> z >> d) {
-    tmp.resize(dim);
-    tmp[0] = x;
-    tmp[1] = y;
-    tmp[2] = z;
-    cloud.push_back(tmp);
-    N++;
-  }
-  Matrix<T> point(new T[N * dim], N, 3);
-  for (unsigned int i = 0; i < N; i++) {
-    for (unsigned int j = 0; j < dim; j++) {
-      point[i][j] = cloud[i][j];
-    }
-  }
-  return point;
-}
-
 template <typename num_t> void kdtree_demo(string &path1, string &path2) {
   Matrix<num_t> PcloudS, PcloudT;
   unsigned int N;

@@ -53,8 +53,8 @@ def plotTime(execPath, numRepetitions, numDivisions):
 
 if __name__ == '__main__':
 
-    if(len(sys.argv)!=7 or  os.path.exists(sys.argv[1]) == False  or os.path.exists(sys.argv[2]) == False):
-        raise ValueError('\n\n****Running Instructions:****\n ./realTests.py dataFile1 dataFile2 nanoflannFlag flannFlag fastannFlag libkdtreeFlag\n\n Example:\n ./realTests.py dat_avz/001/scan1.dat dat_avz/001/scan2.dat 1 1 0 0\n This will run benchmarking tests on real scans with different poses for nanoflann and flann.\n Make sure that the scans are of the same scene.')
+    if(len(sys.argv)!=7):
+        raise ValueError('\n\n****Running Instructions:****\n ./realTests.py <Index1> <Index2> nanoflannFlag flannFlag fastannFlag libkdtreeFlag\n\n Example:\n ./realTests.py dat_avz/001/scan1.dat dat_avz/001/scan2.dat 1 1 0 0\n This will run benchmarking tests on real scans with different poses for nanoflann and flann.')
 
     nanoflannFlag = int(sys.argv[3])
     flannFlag     = int(sys.argv[4])
