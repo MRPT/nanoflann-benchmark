@@ -31,6 +31,7 @@ def plotTime(execPath, numRepetitions, numDivisions):
         (out, err) = proc.communicate()
         List = out.split()
         for it, item in enumerate(List):
+            print('Processing: it=' + str(it) + ' item:' + str(item))
             if(it<numDivisions):
                 if(processCount==0):
                     xaxis += [int(item)]
@@ -63,13 +64,15 @@ if __name__ == '__main__':
 
     numRepetitions = 50
     numDivisions = 10
+    numQueryPoints = 100
 
     # BUILD TIME PLOTS
     dir_path = os.path.dirname(os.path.realpath(__file__))
     dir_path = dir_path + '/../../build-Release/benchmarkTool/realTests/'
     fig, ax = plt.subplots()
     if(nanoflannFlag):
-        xaxis, nanoflannBuildTimeFinal, nanoflannBuildTimeError, nanoflannQueryTimeFinal, nanoflannQueryTimeError = plotTime(dir_path + './benchmark_nanoflann_real' + ' ' + sys.argv[1] + ' ' + sys.argv[2], numRepetitions, numDivisions)
+        xaxis, nanoflannBuildTimeFinal, nanoflannBuildTimeError, nanoflannQueryTimeFinal, nanoflannQueryTimeError = \
+          plotTime(dir_path + './benchmark_nanoflann_real' + ' ' + str(numQueryPoints), numRepetitions, numDivisions)
         plt.plot(xaxis, nanoflannBuildTimeFinal, 'r', label='nanoflann', linewidth=3.0)
         plt.errorbar(xaxis, nanoflannBuildTimeFinal, color='k', yerr=nanoflannBuildTimeError, fmt='o', capsize=10)
     if(flannFlag):

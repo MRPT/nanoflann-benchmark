@@ -27,7 +27,6 @@
  *************************************************************************/
 
 #include <cstdlib>
-#include <ctime>
 #include <fstream>
 #include <iostream>
 #include <nanoflann.hpp>
@@ -36,6 +35,7 @@
 #include "kitti.h"
 #include <mrpt/core/Clock.h>
 #include <mrpt/obs/CObservationPointCloud.h>
+#include <mrpt/random/random_shuffle.h>
 
 using namespace std;
 using namespace nanoflann;
@@ -86,94 +86,138 @@ template <typename T> struct PointCloud {
   }
 };
 
-template <typename num_t> void kdtree_demo(const int pcIdx1, const int pcIdx2) {
+std::vector<size_t> generatePartialRandomPermutation(size_t numElements,
+                                                     size_t numSelected) {
+  std::vector<size_t> idxs(numElements);
+  std::iota(idxs.begin(), idxs.end(), 0);
+  std::random_device rd; // used for random seed
+  std::mt19937 g(rd());
+  mrpt::random::partial_shuffle(idxs.begin(), idxs.end(), g, numSelected);
+  return idxs;
+}
+
+template <typename num_t> void kdtree_demo(int numTimeSteps) {
 
   auto kitti = benchmark_load_kitti();
 
-  const auto pc1 = kitti->getPointCloud(pcIdx1);
-  const auto pc2 = kitti->getPointCloud(pcIdx2);
+  const size_t numDatasetTimesteps = kitti->getTimestepCount();
 
-  PointCloud<num_t> PcloudS, PcloudT;
-  unsigned int N = std::min(pc1->pointcloud->size(), pc2->pointcloud->size());
-
-  PcloudS.loadFromMRPT(*pc1->pointcloud);
-  PcloudT.loadFromMRPT(*pc2->pointcloud);
+  const double timestepIncr = 1.0 / (1.0 * numTimeSteps);
 
   // buildTime : time required to build the kd-tree index
   // queryTime : time required to find nearest neighbor for a single point
   // in the kd-tree
+  vector<size_t> pointCounts;
   vector<double> buildTime, queryTime;
 
-  unsigned int plotCount = 10;
+  for (double p = .0; p < 1.0; p += timestepIncr) {
+    size_t pcIdx1 = 1 + (numDatasetTimesteps - 2) * p;
+    const auto pcIdx2 = pcIdx1 - 1;
 
-  for (unsigned int i = 1; i <= plotCount; i++) {
-    // size of dataset currently being used
-    unsigned int currSize = ((i * 1.0) / plotCount) * N;
-    std::cout << currSize << " ";
-    PointCloud<num_t> cloudS, cloudT;
-    cloudS.pts.resize(currSize);
-    cloudT.pts.resize(currSize);
+    std::cerr << "Loading timestep: " << pcIdx1 << "/" << numDatasetTimesteps
+              << std::endl;
 
-    for (unsigned int j = 0; j < currSize; j++) {
-      cloudS.pts[j] = PcloudS.pts[j];
-      cloudT.pts[j] = PcloudT.pts[j];
+    const auto pc1 = kitti->getPointCloud(pcIdx1);
+    const auto pc2 = kitti->getPointCloud(pcIdx2);
+
+    PointCloud<num_t> PcloudS, PcloudT;
+    unsigned int N = std::min(pc1->pointcloud->size(), pc2->pointcloud->size());
+
+    PcloudS.loadFromMRPT(*pc1->pointcloud);
+    PcloudT.loadFromMRPT(*pc2->pointcloud);
+
+    // Subsample query pointcloud:
+    PointCloud<num_t> cloudQuery;
+    const auto nQueries = std::max<size_t>(1000, N / 100);
+    {
+      const auto idxs =
+          generatePartialRandomPermutation(PcloudT.pts.size(), nQueries);
+      cloudQuery.pts.resize(nQueries);
+      for (size_t i = 0; i < nQueries; i++)
+        cloudQuery.pts[i] = PcloudT.pts[idxs[i]];
     }
 
-    clock_t begin = clock();
-    // construct a kd-tree index:
-    typedef KDTreeSingleIndexAdaptor<
-        L2_Simple_Adaptor<num_t, PointCloud<num_t>>, PointCloud<num_t>,
-        3 /* dim */
-        >
-        my_kd_tree_t;
-    my_kd_tree_t index(3 /*dim*/, cloudS, {10 /* max leaf */});
-    clock_t end = clock();
-    double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-    buildTime.push_back(elapsed_secs);
+    unsigned int plotCount = 10;
 
-    {
-      double elapsed_secs = 0;
-      for (unsigned int j = 0; j < currSize; j++) {
-        num_t query_pt[3];
-        query_pt[0] = cloudT.pts[j].x;
-        query_pt[1] = cloudT.pts[j].y;
-        query_pt[2] = cloudT.pts[j].z;
-        size_t ret_index;
-        num_t out_dist_sqr;
-        const size_t num_results = 1;
-        KNNResultSet<num_t> resultSet(num_results);
-        resultSet.init(&ret_index, &out_dist_sqr);
+    std::vector<std::optional<PointCloud<num_t>>> all_cloudS(plotCount);
 
-        double begin = mrpt::Clock::nowDouble();
+    for (unsigned int i = 1; i <= plotCount; i++) {
+      // size of dataset currently being used
+      unsigned int currSize = ((i * 1.0) / plotCount) * N;
 
-        // do a knn search
-        index.findNeighbors(resultSet, &query_pt[0], {});
+      pointCounts.push_back(currSize);
 
-        double end = mrpt::Clock::nowDouble();
-        elapsed_secs += end - begin;
+      // Already created?
+      auto &cloudS = all_cloudS.at(i - 1);
+      if (!cloudS) {
+        cloudS.emplace();
+
+        const auto idxs =
+            generatePartialRandomPermutation(PcloudS.pts.size(), currSize);
+        cloudS->pts.resize(currSize);
+        for (unsigned int j = 0; j < currSize; j++) {
+          cloudS->pts[j] = PcloudS.pts[idxs[j]];
+        }
       }
-      elapsed_secs /= CLOCKS_PER_SEC;
-      queryTime.push_back(elapsed_secs / currSize);
+
+      const double begin = mrpt::Clock::nowDouble();
+
+      // construct a kd-tree index:
+      typedef KDTreeSingleIndexAdaptor<
+          L2_Simple_Adaptor<num_t, PointCloud<num_t>>, PointCloud<num_t>,
+          3 /* dim */
+          >
+          my_kd_tree_t;
+      my_kd_tree_t index(3 /*dim*/, *cloudS, {10 /* max leaf */});
+
+      const double end = mrpt::Clock::nowDouble();
+      double elapsed_secs = (end - begin);
+      buildTime.push_back(elapsed_secs);
+
+      {
+        double elapsed_secs = 0;
+        for (unsigned int j = 0; j < nQueries; j++) {
+          const num_t query_pt[3] = {cloudQuery.pts[j].x, cloudQuery.pts[j].y,
+                                     cloudQuery.pts[j].z};
+
+          size_t ret_index;
+          num_t out_dist_sqr;
+          const size_t num_results = 1;
+          KNNResultSet<num_t> resultSet(num_results);
+          resultSet.init(&ret_index, &out_dist_sqr);
+
+          double begin = mrpt::Clock::nowDouble();
+
+          // do a knn search
+          index.findNeighbors(resultSet, &query_pt[0], {});
+
+          double end = mrpt::Clock::nowDouble();
+          elapsed_secs += end - begin;
+        }
+        queryTime.push_back(elapsed_secs / currSize);
+      }
     }
   }
+
+  for (auto v : pointCounts)
+    std::cout << v << " ";
   std::cout << "\n";
 
-  for (unsigned int i = 0; i < buildTime.size(); i++)
-    std::cout << buildTime[i] << " ";
+  for (auto v : buildTime)
+    std::cout << v << " ";
   std::cout << "\n";
 
-  for (unsigned int i = 0; i < queryTime.size(); i++)
-    std::cout << queryTime[i] << " ";
+  for (auto v : queryTime)
+    std::cout << v << " ";
   std::cout << "\n";
 }
 
 int main(int argc, char **argv) {
-  if (argc != 3) {
-    std::cerr << "Usage instructions: " << argv[0]
-              << " <CLOUD_INDEX_1> <CLOUD_INDEX_2>" << std::endl;
-    return 1;
+  if (argc != 2) {
+    cerr << "Usage: " << argv[0] << " <MAX_TIMESTEPS>" << endl;
+    return 0;
   }
 
-  kdtree_demo<double>(atoi(argv[1]), atoi(argv[2]));
+  kdtree_demo<double>(atoi(argv[1]));
   return 0;
 }
