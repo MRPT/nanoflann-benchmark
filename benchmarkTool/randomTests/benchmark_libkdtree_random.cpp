@@ -139,7 +139,7 @@ void kdtree_demo(const size_t N, double &buildTimer, double &queryTimer) {
 }
 
 int main(int argc, char *argv[]) {
-  size_t plotCount = 10;
+  size_t decimationCount = 10;
   size_t maxSize = 10000;
 
   if (argc == 3) {
@@ -157,8 +157,8 @@ int main(int argc, char *argv[]) {
   // the kd-tree
   vector<double> buildTime, queryTime;
 
-  for (size_t i = 1; i <= plotCount; i++) {
-    size_t currSize = ((i * 1.0) / plotCount) * maxSize;
+  for (size_t i = 1; i <= decimationCount; i++) {
+    size_t currSize = ((i * 1.0) / decimationCount) * maxSize;
     std::cout << currSize << " ";
     double buildTimer = 0, queryTimer = 0;
     kdtree_demo<float>(currSize, buildTimer, queryTimer);

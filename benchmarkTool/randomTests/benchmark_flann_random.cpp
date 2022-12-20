@@ -26,92 +26,86 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *************************************************************************/
 
-#include <flann/flann.hpp>
-#include <ctime>
 #include <cstdlib>
+#include <ctime>
+#include <flann/flann.hpp>
 #include <iostream>
- 
+
 using namespace std;
 using namespace flann;
 
 template <typename T>
-Matrix<T> generateRandomPointCloud(const size_t N, const T max_range = 10)
-{
-    size_t dim=3;
-    Matrix<T> point(new T[N*dim], N, 3);
-    for (size_t i=0;i<N;i++)
-    {
-        for(size_t j=0;j<dim;j++)
-        {
-            point[i][j] = max_range * (rand() % 1000) / T(1000);
-        }
+Matrix<T> generateRandomPointCloud(const size_t N, const T max_range = 10) {
+  size_t dim = 3;
+  Matrix<T> point(new T[N * dim], N, 3);
+  for (size_t i = 0; i < N; i++) {
+    for (size_t j = 0; j < dim; j++) {
+      point[i][j] = max_range * (rand() % 1000) / T(1000);
     }
-    return point;
+  }
+  return point;
 }
 
 template <typename num_t>
-void kdtree_demo(const size_t N, double &buildTimer, double &queryTimer)
-{
-    Matrix<num_t> cloudS = generateRandomPointCloud<num_t>(N);
-    Matrix<num_t> cloudT = generateRandomPointCloud<num_t>(N);
+void kdtree_demo(const size_t N, double &buildTimer, double &queryTimer) {
+  Matrix<num_t> cloudS = generateRandomPointCloud<num_t>(N);
+  Matrix<num_t> cloudT = generateRandomPointCloud<num_t>(N);
 
-    size_t nn=1;
+  size_t nn = 1;
 
+  clock_t begin = clock();
+  // construct a kd-tree index:
+  Index<L2<num_t>> index(cloudS, flann::KDTreeIndexParams(1));
+  index.buildIndex();
+  clock_t end = clock();
+  buildTimer += double(end - begin) / CLOCKS_PER_SEC;
+
+  {
+    Matrix<int> indices(new int[cloudT.rows * nn], cloudT.rows, nn);
+    Matrix<num_t> dists(new num_t[cloudT.rows * nn], cloudT.rows, nn);
     clock_t begin = clock();
-    // construct a kd-tree index:
-    Index<L2<num_t> > index(cloudS, flann::KDTreeIndexParams(1));
-    index.buildIndex();
+    // do a knn search
+    index.knnSearch(cloudT, indices, dists, nn, flann::SearchParams(-1));
     clock_t end = clock();
-    buildTimer += double(end - begin) / CLOCKS_PER_SEC;
-    
-    {
-        Matrix<int> indices(new int[cloudT.rows*nn], cloudT.rows, nn);
-        Matrix<num_t> dists(new num_t[cloudT.rows*nn], cloudT.rows, nn);
-        clock_t begin = clock();
-        // do a knn search
-        index.knnSearch(cloudT, indices, dists, nn, flann::SearchParams(-1));
-        clock_t end = clock();
-        double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-        queryTimer += elapsed_secs/N;
-    }
+    double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
+    queryTimer += elapsed_secs / N;
+  }
 }
 
-int main(int argc, char *argv[])
-{
-    size_t plotCount = 10;
-    size_t maxSize = 10000;
-    
-    if(argc == 3)
-    {
-        srand(atoi(argv[2]));
-        maxSize = atoi(argv[1]);
-    }
-    else
-    {
-        cerr << "**Running Instructions:**\n ./benchmark_flann_random numPoints seed\nExample:\n ./benchmark_flann_random 10000 1" << endl;
-        return 0;
-    }
+int main(int argc, char *argv[]) {
+  size_t decimationCount = 10;
+  size_t maxSize = 10000;
 
-    // buildTime : time required to build the kd-tree index
-    // queryTime : time required to find nearest neighbor for a single point in the kd-tree
-    vector<double> buildTime, queryTime;
-
-    for (size_t i=1;i<=plotCount;i++)
-    {
-        size_t currSize=((i*1.0)/plotCount)*maxSize;
-        std::cout<<currSize<<" ";
-        double buildTimer = 0, queryTimer = 0;
-        kdtree_demo<float>(currSize, buildTimer, queryTimer);
-        buildTime.push_back(buildTimer);
-        queryTime.push_back(queryTimer);
-    }
-    cout<<"\n";
-    for(size_t i=0;i<buildTime.size();i++)
-        std::cout<<buildTime[i]<<" ";
-    std::cout<<"\n";
-
-    for(size_t i=0;i<queryTime.size();i++)
-        std::cout<<queryTime[i]<<" ";
-    std::cout<<"\n";
+  if (argc == 3) {
+    srand(atoi(argv[2]));
+    maxSize = atoi(argv[1]);
+  } else {
+    cerr << "**Running Instructions:**\n ./benchmark_flann_random numPoints "
+            "seed\nExample:\n ./benchmark_flann_random 10000 1"
+         << endl;
     return 0;
+  }
+
+  // buildTime : time required to build the kd-tree index
+  // queryTime : time required to find nearest neighbor for a single point in
+  // the kd-tree
+  vector<double> buildTime, queryTime;
+
+  for (size_t i = 1; i <= decimationCount; i++) {
+    size_t currSize = ((i * 1.0) / decimationCount) * maxSize;
+    std::cout << currSize << " ";
+    double buildTimer = 0, queryTimer = 0;
+    kdtree_demo<float>(currSize, buildTimer, queryTimer);
+    buildTime.push_back(buildTimer);
+    queryTime.push_back(queryTimer);
+  }
+  cout << "\n";
+  for (size_t i = 0; i < buildTime.size(); i++)
+    std::cout << buildTime[i] << " ";
+  std::cout << "\n";
+
+  for (size_t i = 0; i < queryTime.size(); i++)
+    std::cout << queryTime[i] << " ";
+  std::cout << "\n";
+  return 0;
 }

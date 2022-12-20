@@ -106,11 +106,11 @@ template <typename num_t> void kdtree_demo(string &path1, string &path2) {
   // the kd-tree
   vector<double> buildTime, queryTime;
 
-  unsigned int plotCount = 10;
+  unsigned int decimationCount = 10;
 
-  for (unsigned int i = 1; i <= plotCount; i++) {
+  for (unsigned int i = 1; i <= decimationCount; i++) {
     // size of dataset currently being used
-    unsigned int currSize = ((i * 1.0) / plotCount) * N;
+    unsigned int currSize = ((i * 1.0) / decimationCount) * N;
     std::cout << currSize << " ";
     vector<triplet> cloudS, cloudT;
 

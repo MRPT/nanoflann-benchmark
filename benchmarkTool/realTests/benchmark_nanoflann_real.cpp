@@ -96,7 +96,8 @@ std::vector<size_t> generatePartialRandomPermutation(size_t numElements,
   return idxs;
 }
 
-template <typename num_t> void kdtree_demo(int numTimeSteps) {
+template <typename num_t>
+void kdtree_demo(int numTimeSteps, unsigned int decimationCount) {
 
   auto kitti = benchmark_load_kitti();
 
@@ -107,9 +108,6 @@ template <typename num_t> void kdtree_demo(int numTimeSteps) {
   // buildTime : time required to build the kd-tree index
   // queryTime : time required to find nearest neighbor for a single point
   // in the kd-tree
-  vector<size_t> pointCounts;
-  vector<double> buildTime, queryTime;
-
   for (double p = .0; p < 1.0; p += timestepIncr) {
     size_t pcIdx1 = 1 + (numDatasetTimesteps - 2) * p;
     const auto pcIdx2 = pcIdx1 - 1;
@@ -137,15 +135,13 @@ template <typename num_t> void kdtree_demo(int numTimeSteps) {
         cloudQuery.pts[i] = PcloudT.pts[idxs[i]];
     }
 
-    unsigned int plotCount = 10;
+    std::vector<std::optional<PointCloud<num_t>>> all_cloudS(decimationCount);
 
-    std::vector<std::optional<PointCloud<num_t>>> all_cloudS(plotCount);
-
-    for (unsigned int i = 1; i <= plotCount; i++) {
+    for (unsigned int i = 1; i <= decimationCount; i++) {
       // size of dataset currently being used
-      unsigned int currSize = ((i * 1.0) / plotCount) * N;
+      unsigned int currSize = ((i * 1.0) / decimationCount) * N;
 
-      pointCounts.push_back(currSize);
+      std::cout << currSize << " ";
 
       // Already created?
       auto &cloudS = all_cloudS.at(i - 1);
@@ -172,7 +168,8 @@ template <typename num_t> void kdtree_demo(int numTimeSteps) {
 
       const double end = mrpt::Clock::nowDouble();
       double elapsed_secs = (end - begin);
-      buildTime.push_back(elapsed_secs);
+
+      std::cout << elapsed_secs << " ";
 
       {
         double elapsed_secs = 0;
@@ -194,30 +191,20 @@ template <typename num_t> void kdtree_demo(int numTimeSteps) {
           double end = mrpt::Clock::nowDouble();
           elapsed_secs += end - begin;
         }
-        queryTime.push_back(elapsed_secs / currSize);
+
+        std::cout << elapsed_secs / nQueries << "\n";
       }
     }
   }
-
-  for (auto v : pointCounts)
-    std::cout << v << " ";
-  std::cout << "\n";
-
-  for (auto v : buildTime)
-    std::cout << v << " ";
-  std::cout << "\n";
-
-  for (auto v : queryTime)
-    std::cout << v << " ";
-  std::cout << "\n";
 }
 
 int main(int argc, char **argv) {
-  if (argc != 2) {
-    cerr << "Usage: " << argv[0] << " <MAX_TIMESTEPS>" << endl;
+  if (argc != 3) {
+    cerr << "Usage: " << argv[0] << " <MAX_TIMESTEPS> <DECIMATION_COUNTS>"
+         << endl;
     return 0;
   }
 
-  kdtree_demo<double>(atoi(argv[1]));
+  kdtree_demo<double>(atoi(argv[1]), atoi(argv[2]));
   return 0;
 }

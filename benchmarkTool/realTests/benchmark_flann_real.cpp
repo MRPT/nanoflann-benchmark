@@ -48,11 +48,11 @@ template <typename num_t> void kdtree_demo(string &path1, string &path2) {
   // the kd-tree
   vector<double> buildTime, queryTime;
 
-  unsigned int plotCount = 10, nn = 1, dim = 3;
+  unsigned int decimationCount = 10, nn = 1, dim = 3;
 
-  for (unsigned int i = 1; i <= plotCount; i++) {
+  for (unsigned int i = 1; i <= decimationCount; i++) {
     // size of dataset currently being used
-    unsigned int currSize = ((i * 1.0) / plotCount) * N;
+    unsigned int currSize = ((i * 1.0) / decimationCount) * N;
     std::cout << currSize << " ";
     Matrix<num_t> cloudS(new num_t[currSize * dim], currSize, dim);
     Matrix<num_t> cloudT(new num_t[currSize * dim], currSize, dim);
