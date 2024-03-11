@@ -1,5 +1,5 @@
-#include <mola-input-kitti-dataset/KittiOdometryDataset.h>
-#include <mola-yaml/yaml_helpers.h>
+#include <mola_input_kitti_dataset/KittiOdometryDataset.h>
+#include <mola_yaml/yaml_helpers.h>
 
 #include <iostream>
 

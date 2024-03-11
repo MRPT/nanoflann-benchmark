@@ -34,6 +34,7 @@
 
 #include "kitti.h"
 #include <mrpt/core/Clock.h>
+#include <mrpt/core/get_env.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/random/random_shuffle.h>
 
@@ -101,7 +102,7 @@ void kdtree_demo(int numTimeSteps, unsigned int decimationCount) {
 
   auto kitti = benchmark_load_kitti();
 
-  const size_t numDatasetTimesteps = kitti->getTimestepCount();
+  const size_t numDatasetTimesteps = kitti->datasetSize();
 
   const double timestepIncr = 1.0 / (1.0 * numTimeSteps);
 
@@ -115,8 +116,14 @@ void kdtree_demo(int numTimeSteps, unsigned int decimationCount) {
     std::cerr << "Loading timestep: " << pcIdx1 << "/" << numDatasetTimesteps
               << std::endl;
 
-    const auto pc1 = kitti->getPointCloud(pcIdx1);
-    const auto pc2 = kitti->getPointCloud(pcIdx2);
+    const auto pc1 =
+        std::dynamic_pointer_cast<mrpt::obs::CObservationPointCloud>(
+            kitti->getPointCloud(pcIdx1));
+    ASSERT_(pc1);
+    const auto pc2 =
+        std::dynamic_pointer_cast<mrpt::obs::CObservationPointCloud>(
+            kitti->getPointCloud(pcIdx2));
+    ASSERT_(pc2);
 
     PointCloud<num_t> PcloudS, PcloudT;
     unsigned int N = std::min(pc1->pointcloud->size(), pc2->pointcloud->size());
@@ -159,12 +166,17 @@ void kdtree_demo(int numTimeSteps, unsigned int decimationCount) {
       const double begin = mrpt::Clock::nowDouble();
 
       // construct a kd-tree index:
-      typedef KDTreeSingleIndexAdaptor<
-          L2_Simple_Adaptor<num_t, PointCloud<num_t>>, PointCloud<num_t>,
-          3 /* dim */
-          >
-          my_kd_tree_t;
-      my_kd_tree_t index(3 /*dim*/, *cloudS, {10 /* max leaf */});
+      nanoflann::KDTreeSingleIndexAdaptorParams params;
+      params.leaf_max_size = 10;
+      params.n_thread_build =
+          mrpt::get_env<uint32_t>("NANOFLANN_BENCHMARK_THREADS", 1);
+
+      using my_kd_tree_t =
+          KDTreeSingleIndexAdaptor<L2_Simple_Adaptor<num_t, PointCloud<num_t>>,
+                                   PointCloud<num_t>, 3 /* dim */
+                                   >;
+
+      my_kd_tree_t index(3 /*dim*/, *cloudS, params);
 
       const double end = mrpt::Clock::nowDouble();
       double elapsed_secs = (end - begin);
@@ -201,6 +213,9 @@ void kdtree_demo(int numTimeSteps, unsigned int decimationCount) {
 int main(int argc, char **argv) {
   if (argc != 3) {
     cerr << "Usage: " << argv[0] << " <MAX_TIMESTEPS> <DECIMATION_COUNTS>"
+         << endl;
+    cerr << "Outputs a table with columns:\n"
+            " num_cloud_points build_index_time[s] query_index_time[s]"
          << endl;
     return 0;
   }

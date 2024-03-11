@@ -1,7 +1,10 @@
-find_package(mola-input-kitti-dataset REQUIRED)
-find_package(mola-yaml REQUIRED)
+
+
+
+find_package(mola_input_kitti_dataset REQUIRED)
+find_package(mola_yaml REQUIRED)
 find_package(mrpt-maps REQUIRED)
-message(STATUS "mola-input-kitti-dataset: ${mola-input-kitti-dataset_FOUND}")
+message(STATUS "mola_input_kitti_dataset: ${mola_input_kitti_dataset_FOUND}")
 
 # ===================
 # NANOFLANN
@@ -9,9 +12,10 @@ message(STATUS "mola-input-kitti-dataset: ${mola-input-kitti-dataset_FOUND}")
 add_executable(benchmark_nanoflann_real benchmark_nanoflann_real.cpp)
 target_link_libraries(benchmark_nanoflann_real
     nanoflann::nanoflann
+    Threads::Threads
     mrpt::maps
-    mola::mola-input-kitti-dataset
-    mola::mola-yaml
+    mola::mola_input_kitti_dataset
+    mola::mola_yaml
 )
 add_dependencies(benchmarks benchmark_nanoflann_real)
 

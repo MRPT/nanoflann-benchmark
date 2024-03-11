@@ -5,6 +5,8 @@ cmake_minimum_required(VERSION 3.1)
 
 project(nanoflann-benchmark)
 
+find_package(Threads REQUIRED)  # TODO: Missing in mola_* packages ?
+
 find_package(nanoflann REQUIRED)
 
 # 3rdparty Libraries
