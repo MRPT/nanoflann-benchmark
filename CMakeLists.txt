@@ -1,7 +1,7 @@
 # ----------------------------------------------------------------------------
 # Root CMake file for nanoflann-benchmark
 # ----------------------------------------------------------------------------
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.5...3.29)
 
 project(nanoflann-benchmark)
 
