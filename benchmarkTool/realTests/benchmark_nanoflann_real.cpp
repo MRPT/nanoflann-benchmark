@@ -91,8 +91,8 @@ std::vector<size_t> generatePartialRandomPermutation(size_t numElements,
                                                      size_t numSelected) {
   std::vector<size_t> idxs(numElements);
   std::iota(idxs.begin(), idxs.end(), 0);
-  std::random_device rd; // used for random seed
-  std::mt19937 g(rd());
+  // std::random_device rd; // used for random seed
+  std::mt19937 g; // rd());
   mrpt::random::partial_shuffle(idxs.begin(), idxs.end(), g, numSelected);
   return idxs;
 }
@@ -184,7 +184,7 @@ void kdtree_demo(int numTimeSteps, unsigned int decimationCount) {
       std::cout << elapsed_secs << " ";
 
       {
-        double elapsed_secs = 0;
+        const double begin = mrpt::Clock::nowDouble();
         for (unsigned int j = 0; j < nQueries; j++) {
           const num_t query_pt[3] = {cloudQuery.pts[j].x, cloudQuery.pts[j].y,
                                      cloudQuery.pts[j].z};
@@ -195,16 +195,13 @@ void kdtree_demo(int numTimeSteps, unsigned int decimationCount) {
           KNNResultSet<num_t> resultSet(num_results);
           resultSet.init(&ret_index, &out_dist_sqr);
 
-          double begin = mrpt::Clock::nowDouble();
-
           // do a knn search
           index.findNeighbors(resultSet, &query_pt[0], {});
-
-          double end = mrpt::Clock::nowDouble();
-          elapsed_secs += end - begin;
         }
+        const double end = mrpt::Clock::nowDouble();
+        const double elapsed_secs = end - begin;
 
-        std::cout << elapsed_secs / nQueries << "\n";
+        std::cout << elapsed_secs / static_cast<double>(nQueries) << "\n";
       }
     }
   }
