@@ -19,6 +19,28 @@ target_link_libraries(benchmark_nanoflann_real
 )
 add_dependencies(benchmarks benchmark_nanoflann_real)
 
+add_executable(benchmark_middlesplit benchmark_middlesplit.cpp)
+target_link_libraries(benchmark_middlesplit
+    nanoflann::nanoflann
+    Threads::Threads
+    mrpt::maps
+    mola::mola_input_kitti_dataset
+    mola::mola_yaml
+)
+add_dependencies(benchmarks benchmark_middlesplit)
+
+# worst_dist pruning investigation benchmark
+add_executable(benchmark_worstdist benchmark_worstdist.cpp)
+target_compile_features(benchmark_worstdist PRIVATE cxx_std_17)
+target_link_libraries(benchmark_worstdist
+    nanoflann::nanoflann
+    Threads::Threads
+    mrpt::maps
+    mola::mola_input_kitti_dataset
+    mola::mola_yaml
+)
+add_dependencies(benchmarks benchmark_worstdist)
+
 # ===================
 # FLANN
 # ===================
