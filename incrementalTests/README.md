@@ -38,8 +38,9 @@ KITTI_BASE_DIR= ./build/benchmark_incremental 30 60 1.5 300 stats.csv   # synthe
 python3 analyze.py stats.csv out_prefix <warmup_frames>
 ```
 
-The full analysis and conclusions live in the nanoflann repo under
-`doc/incremental_index/`.
+The full design rationale, results and conclusions are in
+[`REPORT.md`](REPORT.md); the background-rebuild threading analysis is in
+[`async_rebalance.md`](async_rebalance.md).
 
 ## Dependencies
 - A C++17 compiler, Eigen3, PCL (`common`) and pthreads (for ikd-Tree).
