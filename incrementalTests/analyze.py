@@ -39,7 +39,7 @@ def main():
     data = load(path)
 
     order = ["forest", "rebuild", "rebuild_mt", "inc_b85_d50", "inc_b75_d50",
-             "inc_b70_d30", "inc_b65_d30", "ikd-Tree"]
+             "inc_b70_d30", "inc_b65_d30", "inc_async", "ikd-Tree"]
     methods = [m for m in order if m in data] + [m for m in data if m not in order]
 
     print(f"\n{'method':<14}{'upd_med':>10}{'upd_p95':>10}{'upd_mean':>10}"

@@ -158,6 +158,51 @@ static void runIncremental(
     }
 }
 
+using inc_mt_t = KDTreeSingleIndexIncrementalAdaptorMT<
+    L2_Simple_Adaptor<float, GrowingCloud>, GrowingCloud, 3, uint32_t>;
+
+static void runIncrementalMT(
+    const FrameStream& fs, size_t maxQ, float aBal, float aDel, const std::string& name,
+    MethodStats& st)
+{
+    st.name = name;
+    GrowingCloud cloud;
+    // The MT index reads dataset coords from a background thread, so the backing
+    // storage must not reallocate during a rebuild: reserve the full size.
+    size_t total = 0;
+    for (const auto& s : fs.scans) total += s.size();
+    cloud.pts.reserve(total);
+
+    inc_mt_t index(3, cloud, KDTreeIncrementalIndexParams(aBal, aDel), 1.3, 20000);
+    Timer    timer;
+
+    for (size_t f = 0; f < fs.scans.size(); ++f)
+    {
+        const auto keep = makeKeepBox(fs.sensor[f].data(), fs.keepHalf);
+        inc_mt_t::BoundingBox keepBox;
+        for (int d = 0; d < 3; ++d) { keepBox[d].low = keep.lo[d]; keepBox[d].high = keep.hi[d]; }
+
+        timer.tic();
+        const uint32_t start = static_cast<uint32_t>(cloud.pts.size());
+        for (const auto& p : fs.scans[f]) cloud.pts.push_back(p);
+        const uint32_t end = static_cast<uint32_t>(cloud.pts.size());
+        if (end > start) index.addPoints(start, end - 1);
+        index.removeOutsideBox(keepBox);
+        st.update_ms.push_back(timer.toc_ms());
+
+        const Scan q = makeQueries(fs.scans[f], maxQ);
+        st.num_queries_per_frame = q.size();
+        uint32_t ri[K];
+        float    rd[K];
+        timer.tic();
+        for (const auto& qp : q) (void)index.knnSearch(qp.data(), K, ri, rd);
+        st.query_ms.push_back(timer.toc_ms());
+
+        st.live_points.push_back(index.size());
+        st.phys_points.push_back(index.physicalSize());
+    }
+}
+
 static void runRebuild(const FrameStream& fs, size_t maxQ, unsigned threads, MethodStats& st)
 {
     st.name = threads > 1 ? "rebuild_mt" : "rebuild";
@@ -386,6 +431,12 @@ int main(int argc, char** argv)
         log(c.tag);
         MethodStats s;
         runIncremental(fs, maxQ, c.bal, c.del, c.tag, s);
+        all.push_back(s);
+    }
+    {
+        log("inc_async (MT)");
+        MethodStats s;
+        runIncrementalMT(fs, maxQ, 0.85f, 0.5f, "inc_async", s);
         all.push_back(s);
     }
     {
