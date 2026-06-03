@@ -4,3 +4,4 @@ build
 CMakeLists.txt.user*
 benchmarkTool/results*.txt
 stats*.txt
+3rdparty/ikd-Tree/
