@@ -1,189 +1,164 @@
 #!/bin/env python3
+"""
+Plot baseline (v1.9.0) vs new (v1.10.0) nanoflann benchmark results.
+Reads stats_kitti_00_{baseline|new}_T{N}.txt files and produces
+build-time and query-time bar charts saved as PNG.
+"""
 
 import os
 import glob
 import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+import numpy as np
+
+plt.rcParams.update({
+    "font.family": "DejaVu Sans",
+    "font.size": 13,
+    "axes.titlesize": 15,
+    "axes.labelsize": 13,
+    "legend.fontsize": 12,
+    "figure.dpi": 150,
+})
+
+COLORS = {
+    "baseline": "#4C72B0",   # muted blue  → v1.9.0
+    "new":      "#DD8452",   # warm orange → v1.10.0
+}
+LABELS = {
+    "baseline": "v1.9.0 (baseline)",
+    "new":      "v1.10.0 (new)",
+}
 
 
-def annotate_percent_change(ax, threads, baseline_mean, baseline_err_high,
-                            new_mean, new_err_high, y_offset=0.03):
-    """
-    Annotate percent change from baseline to new above error bars.
-    Returns the maximum y value used by annotations.
-    """
+def annotate_percent_change(ax, x_baseline, x_new, baseline_mean, baseline_err_high,
+                            new_mean, new_err_high, y_offset=0.05):
     max_y = 0.0
-
-    for t, b_m, b_eh, n_m, n_eh in zip(
-        threads, baseline_mean, baseline_err_high, new_mean, new_err_high
+    for xb, xn, b_m, b_eh, n_m, n_eh in zip(
+        x_baseline, x_new, baseline_mean, baseline_err_high, new_mean, new_err_high
     ):
         if b_m == 0:
             continue
-
         pct = (n_m - b_m) / b_m * 100.0
-
-        # Top of the higher error bar
         top = max(b_m + b_eh, n_m + n_eh)
         y = top * (1 + y_offset)
-
-        ax.text(
-            t,
-            y,
-            f"{pct:+.1f}%",
-            ha="center",
-            va="bottom",
-            fontsize=9,
-            fontweight="bold",
-        )
-
+        xc = (xb + xn) / 2
+        color = "#228B22" if pct <= 0 else "#CC2200"
+        ax.text(xc, y, f"{pct:+.1f}%", ha="center", va="bottom",
+                fontsize=10, fontweight="bold", color=color)
         max_y = max(max_y, y)
-
     return max_y
 
 
-# Collect all files
+# ── Load data ──────────────────────────────────────────────────────────────────
 files = glob.glob("stats_kitti_*.txt")
 
-# Parse filenames into categories
 data = {}
 for f in files:
-    base = os.path.basename(f)
-    parts = base.replace(".txt", "").split("_")
-    # Filename pattern: stats_kitti_00[_new]_T*
-    if "new" in parts:
-        method = "new"
-        thread = parts[-1]  # e.g. T0
-    else:
-        method = "baseline"
-        thread = parts[-1]
+    base = os.path.basename(f).replace(".txt", "")
+    parts = base.split("_")
+    method = "new" if "new" in parts else "baseline"
+    thread_str = [p for p in parts if p.startswith("T")][-1]
+    thread = int(thread_str[1:])
 
-    # Load data and compute statistics
-    df = pd.read_csv(
-        f,
-        delim_whitespace=True,
-        names=["NUM_POINTS", "BUILD", "QUERY"]
-    )
+    df = pd.read_csv(f, sep=r"\s+", names=["NUM_POINTS", "BUILD", "QUERY"])
 
-    build_mean = df["BUILD"].mean()
-    build_p10 = df["BUILD"].quantile(0.10)
-    build_p90 = df["BUILD"].quantile(0.90)
-
-    query_mean = df["QUERY"].mean()
-    query_p10 = df["QUERY"].quantile(0.10)
-    query_p90 = df["QUERY"].quantile(0.90)
-
+    bm = df["BUILD"].mean()
+    qm = df["QUERY"].mean()
     data[(thread, method)] = {
-        "BUILD_MEAN": build_mean,
-        "BUILD_ERR_LOW": build_mean - build_p10,
-        "BUILD_ERR_HIGH": build_p90 - build_mean,
-        "QUERY_MEAN": query_mean,
-        "QUERY_ERR_LOW": query_mean - query_p10,
-        "QUERY_ERR_HIGH": query_p90 - query_mean,
+        "BUILD_MEAN":     bm,
+        "BUILD_ERR_LOW":  bm - df["BUILD"].quantile(0.10),
+        "BUILD_ERR_HIGH": df["BUILD"].quantile(0.90) - bm,
+        "QUERY_MEAN":     qm,
+        "QUERY_ERR_LOW":  qm - df["QUERY"].quantile(0.10),
+        "QUERY_ERR_HIGH": df["QUERY"].quantile(0.90) - qm,
+        "N_FRAMES":       len(df),
     }
 
-# Organize into a DataFrame
-threads = sorted(set(t for (t, m) in data.keys()), key=lambda x: int(x[1:]))
-
+threads = sorted(set(t for (t, _) in data.keys()))
 records = []
 for thread in threads:
     for method in ["baseline", "new"]:
-        stats = data[(thread, method)]
-        records.append({
-            "Thread": int(thread[1:]),
-            "Method": method,
-            **stats,
-        })
+        if (thread, method) not in data:
+            continue
+        records.append({"Thread": thread, "Method": method, **data[(thread, method)]})
 
-df = pd.DataFrame(records)
+df_all = pd.DataFrame(records)
+n_frames = int(df_all["N_FRAMES"].max())
 
-# Plot build times with 10–90 percentile error bars
-fig, ax = plt.subplots(figsize=(8, 5))
+WIDTH = 0.35
 
-for method in ["baseline", "new"]:
-    subset = df[df["Method"] == method]
-    offset = -0.2 if method == "baseline" else 0.2
 
-    yerr = [
-        subset["BUILD_ERR_LOW"],
-        subset["BUILD_ERR_HIGH"],
-    ]
+def make_bar_chart(metric, ylabel, title_suffix, filename, unit_scale=1.0, unit_label="s"):
+    fig, ax = plt.subplots(figsize=(10, 5.5))
 
-    ax.bar(
-        subset["Thread"] + offset,
-        subset["BUILD_MEAN"],
-        width=0.4,
-        yerr=yerr,
-        capsize=5,
-        label=method.capitalize(),
+    x_positions = np.arange(len(threads))
+
+    x_b_list, x_n_list = [], []
+    b_means, b_ehl, b_ehh = [], [], []
+    n_means, n_ehl, n_ehh = [], [], []
+
+    for i, t in enumerate(threads):
+        for method, offset, xlist, ml, ehl, ehh in [
+            ("baseline", -WIDTH/2, x_b_list, b_means, b_ehl, b_ehh),
+            ("new",       +WIDTH/2, x_n_list, n_means, n_ehl, n_ehh),
+        ]:
+            row = df_all[(df_all["Thread"] == t) & (df_all["Method"] == method)]
+            if row.empty:
+                continue
+            xlist.append(i + offset)
+            ml.append(row[f"{metric}_MEAN"].values[0] * unit_scale)
+            ehl.append(row[f"{metric}_ERR_LOW"].values[0] * unit_scale)
+            ehh.append(row[f"{metric}_ERR_HIGH"].values[0] * unit_scale)
+
+    for method, xlist, ml, ehl, ehh in [
+        ("baseline", x_b_list, b_means, b_ehl, b_ehh),
+        ("new",       x_n_list, n_means, n_ehl, n_ehh),
+    ]:
+        ax.bar(xlist, ml,
+               width=WIDTH,
+               yerr=[ehl, ehh],
+               capsize=5,
+               color=COLORS[method],
+               label=LABELS[method],
+               alpha=0.88,
+               error_kw={"elinewidth": 1.5, "ecolor": "#333333"})
+
+    max_y = annotate_percent_change(
+        ax, x_b_list, x_n_list,
+        b_means, b_ehh, n_means, n_ehh,
     )
 
-# Annotate percent change
-baseline = df[df["Method"] == "baseline"].sort_values("Thread")
-new = df[df["Method"] == "new"].sort_values("Thread")
+    ymin, ymax = ax.get_ylim()
+    ax.set_ylim(ymin, max(ymax, max_y * 1.12))
 
-max_label_y = annotate_percent_change(
-    ax,
-    baseline["Thread"],
-    baseline["BUILD_MEAN"],
-    baseline["BUILD_ERR_HIGH"],
-    new["BUILD_MEAN"],
-    new["BUILD_ERR_HIGH"],
-)
-
-# Ensure labels are not clipped
-ymin, ymax = ax.get_ylim()
-ax.set_ylim(ymin, max(ymax, max_label_y * 1.05))
-
-ax.set_xlabel("Number of Threads")
-ax.set_ylabel("Average Build Time")
-ax.set_title("Baseline vs New: Build Time (10–90 Percentile)")
-ax.legend()
-ax.set_xticks(df["Thread"].unique())
-# plt.tight_layout()
-plt.show()
-
-# Plot query times with 10–90 percentile error bars
-fig, ax = plt.subplots(figsize=(8, 5))
-
-for method in ["baseline", "new"]:
-    subset = df[df["Method"] == method]
-    offset = -0.2 if method == "baseline" else 0.2
-
-    yerr = [
-        subset["QUERY_ERR_LOW"],
-        subset["QUERY_ERR_HIGH"],
-    ]
-
-    ax.bar(
-        subset["Thread"] + offset,
-        subset["QUERY_MEAN"],
-        width=0.4,
-        yerr=yerr,
-        capsize=5,
-        label=method.capitalize(),
+    hw = 16  # hardware_concurrency on benchmark machine
+    thread_labels = [f"auto\n({hw} cores)" if t == 0 else str(t) for t in threads]
+    ax.set_xticks(x_positions)
+    ax.set_xticklabels(thread_labels)
+    ax.set_xlabel("Number of threads  (auto = all cores detected at runtime)")
+    ax.set_ylabel(f"Mean time ({unit_label})  ·  10–90th pct error bars")
+    ax.set_title(
+        f"nanoflann v1.9.0 vs v1.10.0  ·  {title_suffix}\n"
+        f"KITTI odometry seq-00  ·  {n_frames} LiDAR frames  ·  ~110k pts/frame",
+        pad=10,
     )
+    ax.legend(loc="upper right")
+    ax.yaxis.set_major_formatter(ticker.FormatStrFormatter("%.4f"))
+    ax.grid(axis="y", linestyle="--", alpha=0.4)
+    ax.spines[["top", "right"]].set_visible(False)
 
-# Annotate percent change
-baseline = df[df["Method"] == "baseline"].sort_values("Thread")
-new = df[df["Method"] == "new"].sort_values("Thread")
+    fig.tight_layout()
+    fig.savefig(filename, bbox_inches="tight")
+    print(f"Saved: {filename}")
+    plt.close(fig)
 
-max_label_y = annotate_percent_change(
-    ax,
-    baseline["Thread"],
-    baseline["QUERY_MEAN"],
-    baseline["QUERY_ERR_HIGH"],
-    new["QUERY_MEAN"],
-    new["QUERY_ERR_HIGH"],
-)
 
-# Ensure labels are not clipped
-ymin, ymax = ax.get_ylim()
-ax.set_ylim(ymin, max(ymax, max_label_y * 1.05))
+make_bar_chart("BUILD", "Build time (s)", "Index build time",
+               "benchmark_build_time.png")
+make_bar_chart("QUERY", "Query time (s/query)", "Single-point kNN query time",
+               "benchmark_query_time.png")
 
-ax.set_xlabel("Number of Threads")
-ax.set_ylabel("Average Query Time")
-ax.set_title("Baseline vs New: Query Time (10–90 Percentile)")
-ax.legend()
-ax.set_xticks(df["Thread"].unique())
-# plt.tight_layout()
-plt.show()
+print("Done.")

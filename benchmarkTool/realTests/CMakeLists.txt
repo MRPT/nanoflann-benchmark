@@ -3,8 +3,21 @@
 
 find_package(mola_input_kitti_dataset REQUIRED)
 find_package(mola_yaml REQUIRED)
-find_package(mrpt-maps REQUIRED)
+# mrpt::maps comes transitively from mola; support both old (mrpt-maps) and new (mrpt_maps) naming
+find_package(mrpt_maps QUIET)
+if(NOT mrpt_maps_FOUND)
+    find_package(mrpt-maps REQUIRED)
+endif()
 message(STATUS "mola_input_kitti_dataset: ${mola_input_kitti_dataset_FOUND}")
+
+# Resolve mrpt target name across MRPT 2.15 (mrpt::maps) and MRPT 2.20 (mrpt::mrpt_maps)
+if(TARGET mrpt::maps)
+    set(MRPT_MAPS_TARGET mrpt::maps)
+elseif(TARGET mrpt::mrpt_maps)
+    set(MRPT_MAPS_TARGET mrpt::mrpt_maps)
+elseif(TARGET mrpt_maps)
+    set(MRPT_MAPS_TARGET mrpt_maps)
+endif()
 
 # ===================
 # NANOFLANN
@@ -13,7 +26,7 @@ add_executable(benchmark_nanoflann_real benchmark_nanoflann_real.cpp)
 target_link_libraries(benchmark_nanoflann_real
     nanoflann::nanoflann
     Threads::Threads
-    mrpt::maps
+    ${MRPT_MAPS_TARGET}
     mola::mola_input_kitti_dataset
     mola::mola_yaml
 )
@@ -23,23 +36,13 @@ add_executable(benchmark_middlesplit benchmark_middlesplit.cpp)
 target_link_libraries(benchmark_middlesplit
     nanoflann::nanoflann
     Threads::Threads
-    mrpt::maps
+    ${MRPT_MAPS_TARGET}
     mola::mola_input_kitti_dataset
     mola::mola_yaml
 )
 add_dependencies(benchmarks benchmark_middlesplit)
 
-# worst_dist pruning investigation benchmark
-add_executable(benchmark_worstdist benchmark_worstdist.cpp)
-target_compile_features(benchmark_worstdist PRIVATE cxx_std_17)
-target_link_libraries(benchmark_worstdist
-    nanoflann::nanoflann
-    Threads::Threads
-    mrpt::maps
-    mola::mola_input_kitti_dataset
-    mola::mola_yaml
-)
-add_dependencies(benchmarks benchmark_worstdist)
+# benchmark_worstdist.cpp not present, skipped
 
 # ===================
 # FLANN
