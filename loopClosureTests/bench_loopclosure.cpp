@@ -65,6 +65,93 @@ struct Pose
     double q[4];
 };
 
+// Row-major 3x3 rotation matrix -> unit quaternion (x, y, z, w), Shepperd.
+void rot_to_quat(const double R[9], double q[4])
+{
+    const double tr = R[0] + R[4] + R[8];
+    if (tr > 0)
+    {
+        double s = std::sqrt(tr + 1.0) * 2;  // s = 4*qw
+        q[3]     = 0.25 * s;
+        q[0]     = (R[7] - R[5]) / s;
+        q[1]     = (R[2] - R[6]) / s;
+        q[2]     = (R[3] - R[1]) / s;
+    }
+    else if (R[0] > R[4] && R[0] > R[8])
+    {
+        double s = std::sqrt(1.0 + R[0] - R[4] - R[8]) * 2;  // s = 4*qx
+        q[3]     = (R[7] - R[5]) / s;
+        q[0]     = 0.25 * s;
+        q[1]     = (R[1] + R[3]) / s;
+        q[2]     = (R[2] + R[6]) / s;
+    }
+    else if (R[4] > R[8])
+    {
+        double s = std::sqrt(1.0 + R[4] - R[0] - R[8]) * 2;  // s = 4*qy
+        q[3]     = (R[2] - R[6]) / s;
+        q[0]     = (R[1] + R[3]) / s;
+        q[1]     = 0.25 * s;
+        q[2]     = (R[5] + R[7]) / s;
+    }
+    else
+    {
+        double s = std::sqrt(1.0 + R[8] - R[0] - R[4]) * 2;  // s = 4*qz
+        q[3]     = (R[3] - R[1]) / s;
+        q[0]     = (R[2] + R[6]) / s;
+        q[1]     = (R[5] + R[7]) / s;
+        q[2]     = 0.25 * s;
+    }
+    // canonicalize like the KITTI TUM files (qw >= 0)
+    if (q[3] < 0)
+        for (int i = 0; i < 4; ++i) q[i] = -q[i];
+}
+
+// MulRan global_pose.csv: "stamp,r11,r12,r13,tx,r21,r22,r23,ty,r31,r32,r33,tz"
+// (100 Hz INS ground truth). Decimated to keyframes every `kfDist` meters of
+// travel; translations recentered on the first pose (UTM offsets are huge).
+std::vector<Pose> load_mulran(const std::string& path, double kfDist)
+{
+    std::ifstream f(path);
+    if (!f)
+    {
+        std::cerr << "Cannot open: " << path << "\n";
+        std::exit(1);
+    }
+    std::vector<Pose> out;
+    std::string       line;
+    double            t0[3]    = {0, 0, 0};
+    bool              first    = true;
+    double            last[3]  = {0, 0, 0};
+    while (std::getline(f, line))
+    {
+        if (line.empty() || line[0] == '#') continue;
+        for (auto& ch : line)
+            if (ch == ',') ch = ' ';
+        std::istringstream ss(line);
+        double             ts, M[12];
+        ss >> ts;
+        for (int i = 0; i < 12; ++i) ss >> M[i];
+        if (!ss) continue;
+        const double R[9] = {M[0], M[1], M[2], M[4], M[5], M[6], M[8], M[9], M[10]};
+        const double t[3] = {M[3], M[7], M[11]};
+        if (first)
+        {
+            for (int i = 0; i < 3; ++i) t0[i] = t[i];
+        }
+        Pose p;
+        for (int i = 0; i < 3; ++i) p.t[i] = t[i] - t0[i];
+        const double dx = p.t[0] - last[0];
+        const double dy = p.t[1] - last[1];
+        const double dz = p.t[2] - last[2];
+        if (!first && dx * dx + dy * dy + dz * dz < kfDist * kfDist) continue;
+        rot_to_quat(R, p.q);
+        out.push_back(p);
+        for (int i = 0; i < 3; ++i) last[i] = p.t[i];
+        first = false;
+    }
+    return out;
+}
+
 // TUM trajectory format: timestamp tx ty tz qx qy qz qw
 std::vector<Pose> load_tum(const std::string& path)
 {
@@ -391,13 +478,33 @@ void emit(
 
 int main(int argc, char** argv)
 {
-    if (argc < 3)
+    // Modes:
+    //   bench_loopclosure [--kitti] <kitti_poses_dir> <seq> [<seq> ...]
+    //   bench_loopclosure --mulran <mulran_base_dir> <seq> [<seq> ...]
+    //     (reads <base>/<seq>/global_pose.csv, keyframes every 1 m)
+    int  argi   = 1;
+    bool mulran = false;
+    if (argc > 1 && std::string(argv[1]) == "--mulran")
+    {
+        mulran = true;
+        ++argi;
+    }
+    else if (argc > 1 && std::string(argv[1]) == "--kitti")
+        ++argi;
+    if (argc - argi < 2)
     {
         std::cerr << "Usage: " << argv[0]
-                  << " <kitti_poses_dir> <seq> [<seq> ...]\n";
+                  << " [--kitti] <kitti_poses_dir> <seq> [<seq> ...]\n"
+                  << "       " << argv[0]
+                  << " --mulran <mulran_base_dir> <seq> [<seq> ...]\n";
         return 1;
     }
-    const std::string posesDir = argv[1];
+    const std::string posesDir   = argv[argi++];
+    const double      kfDistM    = 1.0;  // MulRan keyframe spacing [m]
+    // ground-plane axes for the per-query dump: KITTI camera frame = (x, z);
+    // MulRan ENU-like frame = (x, y)
+    const int gp0 = 0;
+    const int gp1 = mulran ? 1 : 2;
 
     const std::vector<double> wrots = {5.0, 15.0, 50.0};
     const std::vector<size_t> ks    = {1, 8};
@@ -406,11 +513,15 @@ int main(int argc, char** argv)
 
     std::printf("seq,N,method,wrot,k,gap,build_ms,query_us,recall,top1\n");
 
-    for (int a = 2; a < argc; ++a)
+    for (int a = argi; a < argc; ++a)
     {
-        const std::string seq   = argv[a];
-        const auto        poses = load_tum(posesDir + "/" + seq + "-tum.txt");
-        const size_t      N     = poses.size();
+        const std::string seq = argv[a];
+        const auto        poses =
+            mulran
+                ? load_mulran(posesDir + "/" + seq + "/global_pose.csv", kfDistM)
+                : load_tum(posesDir + "/" + seq + "-tum.txt");
+        const size_t N = poses.size();
+        std::cerr << "seq " << seq << ": " << N << " keyframes\n";
 
         for (const double wrot : wrots)
         {
@@ -460,9 +571,9 @@ int main(int argc, char** argv)
                     std::ofstream pf(path);
                     pf << "i,x,z,recall_naive,recall_naive_sc,recall_rerank\n";
                     for (size_t i = 0; i < N; ++i)
-                        pf << i << "," << poses[i].t[0] << "," << poses[i].t[2]
-                           << "," << rn[i] << "," << rs[i] << "," << rr2[i]
-                           << "\n";
+                        pf << i << "," << poses[i].t[gp0] << ","
+                           << poses[i].t[gp1] << "," << rn[i] << "," << rs[i]
+                           << "," << rr2[i] << "\n";
                 }
             }
         }

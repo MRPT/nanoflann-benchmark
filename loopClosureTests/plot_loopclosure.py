@@ -91,10 +91,12 @@ def fig_recall(rows):
     savefig(fig, "loopclosure_recall", 3.45, 2.3)
 
 
-def fig_missmap():
-    """Seq 00 trajectory; mark queries the naive sign-continuous tree gets
+def fig_missmap(seq, figname):
+    """Trajectory of `seq`; mark queries the naive sign-continuous tree gets
     wrong (wrot=15, k=8)."""
-    path = os.path.join(HERE, "results", "perquery_00_w15_k8.csv")
+    path = os.path.join(HERE, "results", f"perquery_{seq}_w15_k8.csv")
+    if not os.path.exists(path):
+        return
     xs, zs, miss = [], [], []
     with open(path) as f:
         for r in csv.DictReader(f):
@@ -103,20 +105,29 @@ def fig_missmap():
             miss.append(float(r["recall_naive_sc"]) < 1.0)
     fig, ax = plt.subplots()
     ax.plot(xs, zs, color="0.7", lw=0.8, zorder=1,
-            label="trajectory (seq 00)")
+            label=f"trajectory ({seq})")
     mx = [x for x, m in zip(xs, miss) if m]
     mz = [z for z, m in zip(zs, miss) if m]
     ax.scatter(mx, mz, s=4, color="#b03060", zorder=2,
                label="naive tree: wrong candidates")
     ax.set_xlabel("x [m]")
-    ax.set_ylabel("z [m]")
+    ax.set_ylabel("z [m]" if seq.isdigit() else "y [m]")
     ax.set_aspect("equal")
     ax.grid(alpha=0.3)
     ax.legend(loc="upper left")
     n_miss = sum(miss)
-    print(f"seq00 misses: {n_miss}/{len(miss)} queries "
+    print(f"{seq} misses: {n_miss}/{len(miss)} queries "
           f"({100.0*n_miss/len(miss):.1f}%)")
-    savefig(fig, "loopclosure_missmap", 3.45, 2.9)
+    savefig(fig, figname, 3.45, 2.9)
+
+
+def all_missmaps(rows):
+    seqs = sorted({r["seq"] for r in rows})
+    for seq in seqs:
+        # seq "00" keeps the original paper figure name
+        name = ("loopclosure_missmap" if seq == "00"
+                else f"loopclosure_missmap_{seq}")
+        fig_missmap(seq, name)
 
 
 def table(rows):
@@ -141,7 +152,7 @@ def table(rows):
 def main():
     rows = load()
     fig_recall(rows)
-    fig_missmap()
+    all_missmaps(rows)
     table(rows)
 
 
