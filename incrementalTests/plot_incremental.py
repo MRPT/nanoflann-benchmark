@@ -70,7 +70,7 @@ def load():
 
 def main():
     data = load()
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(3.45, 3.6))
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(3.3, 3.15))
 
     # (a) update-latency CDF, steady state
     for key, (label, color, ls) in STYLE.items():

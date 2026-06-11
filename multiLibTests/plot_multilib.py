@@ -207,10 +207,58 @@ def fig_highdim_combined(rows):
     save(fig, "euclidean_highdim")
 
 
+def fig_euclidean_all(rows):
+    """Single full-width row with the three informative Euclidean panels
+    (page budget): (a) KITTI build, (b) KITTI query, (c) high-dim query;
+    one shared legend covering the union of libraries. Recall is reported
+    in the caption (1.0 for all exact trees, ~0.99 for the approximate
+    methods at d=128)."""
+    kitti_libs = ["proposed", "pico_tree", "flann_kdtree", "pcl_kdtree",
+                  "libnabo", "libkdtree"]
+    hd_libs = ["proposed", "pico_tree", "flann_kdtree", "libnabo",
+               "flann_4rand", "hnsw_approx", "brute_force"]
+    fig, (a0, a1, a2) = plt.subplots(1, 3, figsize=(7.05, 2.15))
+    fig.set_layout_engine("none")
+    for lib in kitti_libs:
+        x, y = series(rows, "kitti", lib, "N", "build_ms")
+        if x:
+            lab, col, mk, ls = STYLE[lib]
+            a0.loglog(x, y, ls=ls, marker=mk, ms=2.6, color=col, label=lab)
+    for lib in kitti_libs + ["brute_force"]:
+        x, y = series(rows, "kitti", lib, "N", "query_us")
+        if x:
+            lab, col, mk, ls = STYLE[lib]
+            a1.loglog(x, y, ls=ls, marker=mk, ms=2.6, color=col)
+    for lib in hd_libs:
+        x, y = series(rows, "highdim", lib, "dim", "query_us")
+        if x:
+            lab, col, mk, ls = STYLE[lib]
+            a2.semilogy(x, y, ls=ls, marker=mk, ms=2.6, color=col,
+                        label=lab if lib not in kitti_libs else None)
+    a0.set_xlabel("dataset size $N$\n(a) KITTI: index build")
+    a0.set_ylabel("build [ms]")
+    a1.set_xlabel("dataset size $N$\n(b) KITTI: exact $1$-NN query")
+    a1.set_ylabel(r"query [$\mu$s]")
+    a2.set_xlabel("feature dimension $d$\n(c) high-dim: $1$-NN query")
+    a2.set_ylabel(r"query [$\mu$s]")
+    a2.set_xticks([32, 64, 128])
+    for ax in (a0, a1, a2):
+        ax.grid(True, which="both", ls=":", lw=0.4, alpha=0.6)
+        ax.tick_params(labelsize=7)
+    h0, l0 = a0.get_legend_handles_labels()
+    h2, l2 = a2.get_legend_handles_labels()
+    fig.legend(h0 + h2, l0 + l2, loc="upper center", ncol=5, fontsize=7,
+               bbox_to_anchor=(0.5, 1.00), frameon=False)
+    fig.subplots_adjust(left=0.075, right=0.99, bottom=0.30,
+                        top=0.80, wspace=0.42)
+    save(fig, "euclidean_all")
+
+
 def main():
     rows = load()
     fig_kitti_combined(rows)
     fig_highdim_combined(rows)
+    fig_euclidean_all(rows)
     print("Figures written to", PAPER_FIGS)
 
 

@@ -80,7 +80,7 @@ def fig_space(rows, space, libs, name, title):
 
 def fig_combined(rows):
     """One full-width row: (a) SO(3), (b) SE(3)."""
-    fig, (a0, a1) = plt.subplots(1, 2, figsize=(7.0, 2.0))
+    fig, (a0, a1) = plt.subplots(1, 2, figsize=(7.0, 1.7))
     for lib in ["proposed", "nigh", "mpnn", "brute_force"]:
         x, y = series(rows, "SO3", lib, "query_us")
         if x:
