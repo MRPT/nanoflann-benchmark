@@ -1,0 +1,6 @@
+variant,N,build_s,query_us,checksum
+manifold_on,1000,0.000052,0.1160,7c22f0c3aa48b8fe
+manifold_on,10000,0.000705,0.1786,86dbe8cd7146fcd6
+manifold_on,100000,0.007528,0.2683,1c27317ed74c6e1c
+manifold_on,1000000,0.097136,0.8466,487b4ee37d1fa458
+manifold_on,10000000,1.507329,1.5325,9aaa7417bf04dba3
