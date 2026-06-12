@@ -219,22 +219,35 @@ def fig_euclidean_all(rows):
                "flann_4rand", "hnsw_approx", "brute_force"]
     fig, (a0, a1, a2) = plt.subplots(1, 3, figsize=(7.05, 2.15))
     fig.set_layout_engine("none")
+
+    # Emphasis for the library under test: draw it *last* (high zorder) and a
+    # touch thicker, so it is not hidden under the closely-tracking baselines
+    # (e.g. PicoTree, whose curve nearly coincides with it).
+    def _emph(lib):
+        on_top = lib == "proposed"
+        return {
+            "ms": 3.4 if on_top else 2.6,
+            "lw": 2.0 if on_top else 1.1,
+            "zorder": 6 if on_top else 3,
+        }
+
     for lib in kitti_libs:
         x, y = series(rows, "kitti", lib, "N", "build_ms")
         if x:
             lab, col, mk, ls = STYLE[lib]
-            a0.loglog(x, y, ls=ls, marker=mk, ms=2.6, color=col, label=lab)
+            a0.loglog(x, y, ls=ls, marker=mk, color=col, label=lab, **_emph(lib))
     for lib in kitti_libs + ["brute_force"]:
         x, y = series(rows, "kitti", lib, "N", "query_us")
         if x:
             lab, col, mk, ls = STYLE[lib]
-            a1.loglog(x, y, ls=ls, marker=mk, ms=2.6, color=col)
+            a1.loglog(x, y, ls=ls, marker=mk, color=col, **_emph(lib))
     for lib in hd_libs:
         x, y = series(rows, "highdim", lib, "dim", "query_us")
         if x:
             lab, col, mk, ls = STYLE[lib]
-            a2.semilogy(x, y, ls=ls, marker=mk, ms=2.6, color=col,
-                        label=lab if lib not in kitti_libs else None)
+            a2.semilogy(x, y, ls=ls, marker=mk, color=col,
+                        label=lab if lib not in kitti_libs else None,
+                        **_emph(lib))
     a0.set_xlabel("dataset size $N$\n(a) KITTI: index build")
     a0.set_ylabel("build [ms]")
     a1.set_xlabel("dataset size $N$\n(b) KITTI: exact $1$-NN query")
