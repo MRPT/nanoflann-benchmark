@@ -2,12 +2,12 @@
 # Build and run the manifold head-to-head benchmark, then plot.
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
-NANOFLANN_INC="${NANOFLANN_INCLUDE_DIR:-$HOME/code/nanoflann-manifold/include}"
+NANOFLANN_INC="${NANOFLANN_INCLUDE_DIR:-$HOME/code/nanoflann/include}"
 
-# Ensure the manifold-branch worktree exists.
+# Ensure the proposed (nanoflann2) header is present.
 if [ ! -f "$NANOFLANN_INC/nanoflann.hpp" ]; then
-  echo "Manifold header not found at $NANOFLANN_INC"
-  echo "Create it with: git -C \$HOME/code/nanoflann worktree add \$HOME/code/nanoflann-manifold feat/manifold-topology"
+  echo "nanoflann header not found at $NANOFLANN_INC"
+  echo "Check out the branch with: git -C \$HOME/code/nanoflann checkout nanoflann2"
   exit 1
 fi
 

@@ -16,8 +16,8 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native")
 include(FetchContent)
 
 # ---- proposed library: nanoflann 2.0 dev header (manifold support) ----------
-set(NANOFLANN_INCLUDE_DIR "$ENV{HOME}/code/nanoflann-manifold/include"
-    CACHE PATH "Path to the proposed library's header directory (manifold branch)")
+set(NANOFLANN_INCLUDE_DIR "$ENV{HOME}/code/nanoflann/include"
+    CACHE PATH "Path to the proposed library's header directory (branch nanoflann2)")
 
 find_package(Eigen3 REQUIRED)
 

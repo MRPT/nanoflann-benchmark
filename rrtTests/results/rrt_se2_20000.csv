@@ -1,0 +1,5 @@
+backend,N,nearest_ms,near_ms,update_ms,total_ms,recall
+brute,20001,742.9,0.5,0.0,745.3,1.0000
+incremental,20001,18.2,151.3,10.8,182.4,1.0000
+rebuild,20001,16.3,124.3,19695.6,19844.0,1.0000
+naive-eucl,20001,13.6,119.3,10.2,145.4,0.8216
