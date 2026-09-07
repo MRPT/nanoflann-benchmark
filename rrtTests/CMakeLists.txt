@@ -22,3 +22,26 @@ find_package(Threads REQUIRED)
 add_executable(bench_rrt_se2 bench_rrt_se2.cpp)
 target_include_directories(bench_rrt_se2 PRIVATE ${NANOFLANN_INCLUDE_DIR})
 target_link_libraries(bench_rrt_se2 PRIVATE Threads::Threads)
+
+# ---- nigh (UNC-Robotics): incremental exact NN on Cartesian product spaces ---
+# Included as a dynamic-structure baseline for the insert-only workload. Note
+# that nigh's SE(2) metric is ||dt|| + |dtheta| (an unsquared Cartesian sum),
+# not the squared product metric, so each backend is scored against its own
+# exhaustive ground truth and the disagreement rate is printed to stderr.
+option(WITH_NIGH "Benchmark against nigh" ON)
+if(WITH_NIGH)
+  find_package(Eigen3 QUIET)
+  if(Eigen3_FOUND)
+    include(FetchContent)
+    FetchContent_Declare(nigh
+      GIT_REPOSITORY https://github.com/UNC-Robotics/nigh.git
+      GIT_TAG master)
+    FetchContent_MakeAvailable(nigh)
+    target_include_directories(bench_rrt_se2 PRIVATE ${nigh_SOURCE_DIR}/src)
+    target_link_libraries(bench_rrt_se2 PRIVATE Eigen3::Eigen)
+    target_compile_definitions(bench_rrt_se2 PRIVATE HAVE_NIGH)
+    message(STATUS "nigh baseline: ENABLED")
+  else()
+    message(STATUS "nigh baseline: DISABLED (Eigen3 not found)")
+  endif()
+endif()

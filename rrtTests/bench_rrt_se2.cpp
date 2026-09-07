@@ -18,9 +18,16 @@
 //                   -- the common workaround; measured for *recall*, to show it
 //                   returns the wrong nearest near the +/-pi seam.
 //
+// All backends grow along the SAME canonical node sequence (defined by the
+// brute-force reference), so every structure holds identical points at every
+// iteration. That keeps the timings comparable and makes recall well defined
+// even for a backend whose metric selects a different nearest node, which would
+// otherwise make its tree diverge from the reference after the first
+// disagreement.
+//
 // Metrics: cumulative nearest-query time, near-set-query time, structure-update
-// time (insert or rebuild), total; and recall of the nearest vs the geodesic
-// brute-force ground truth. CSV on stdout: backend,N,nearest_ms,near_ms,
+// time (insert or rebuild), total; and recall of the returned nearest against
+// the exhaustive ground truth *for that backend's own metric*. CSV on stdout: backend,N,nearest_ms,near_ms,
 // update_ms,total_ms,recall.
 
 #include <algorithm>
@@ -32,6 +39,14 @@
 #include <vector>
 
 #include <nanoflann.hpp>
+
+#ifdef HAVE_NIGH
+#include <utility>  // std::exchange (used by nigh's non_atomic.hpp)
+
+#include <Eigen/Dense>
+#include <nigh/kdtree_batch.hpp>
+#include <nigh/se2_space.hpp>
+#endif
 
 using namespace nanoflann;
 using clk = std::chrono::steady_clock;
@@ -56,6 +71,17 @@ struct SE2State
     double y;
     double th;
 };
+
+// nigh's CartesianSpace sums its factor distances *unsquared*, so its SE(2)
+// metric is ||dt|| + |dtheta| rather than the squared product metric used here.
+// The two are not monotone functions of one another, so each backend is scored
+// against its own exhaustive ground truth and the disagreement is reported.
+double se2_dist_nigh(const SE2State& a, const SE2State& b)
+{
+    const double dx = a.x - b.x;
+    const double dy = a.y - b.y;
+    return std::sqrt(dx * dx + dy * dy) + std::abs(wrap(a.th - b.th));
+}
 
 // Squared SE(2) geodesic distance (translation^2 + wrapped-heading^2).
 double se2_dist2(const SE2State& a, const SE2State& b)
@@ -153,6 +179,11 @@ int main(int argc, char** argv)
     ref.push_back({kSide / 2, kSide / 2, 0.0});
     std::vector<size_t> gtNearest;  // ground-truth nearest index per iteration
     gtNearest.reserve(iters);
+    // Ground truth under nigh's Cartesian metric (||dt|| + |dtheta|), so that
+    // backend can be scored against the problem it actually solves.
+    std::vector<size_t> gtNearestNigh;
+    gtNearestNigh.reserve(iters);
+    size_t metricAgree = 0;
     double bruteNearMs = 0, bruteNearSetMs = 0;
     {
         const auto t0 = clk::now();
@@ -173,6 +204,21 @@ int main(int argc, char** argv)
             }
             bruteNearMs += ms_since(tn);
             gtNearest.push_back(best);
+
+            // Same scan under nigh's metric (untimed: reference only).
+            size_t bestN  = 0;
+            double bestdN = 1e300;
+            for (size_t j = 0; j < ref.size(); ++j)
+            {
+                const double d = se2_dist_nigh(q, ref[j]);
+                if (d < bestdN)
+                {
+                    bestdN = d;
+                    bestN  = j;
+                }
+            }
+            gtNearestNigh.push_back(bestN);
+            if (bestN == best) ++metricAgree;
             const SE2State nn = steer(ref[best], q);
             // near-set scan (timing only)
             const auto tnr = clk::now();
@@ -187,6 +233,11 @@ int main(int argc, char** argv)
         printf(
             "brute,%zu,%.1f,%.1f,%.1f,%.1f,1.0000\n", ref.size(), bruteNearMs, bruteNearSetMs, 0.0,
             total);
+        fprintf(
+            stderr,
+            "  NN agreement between the squared product metric and nigh's "
+            "Cartesian metric: %.4f\n",
+            static_cast<double>(metricAgree) / static_cast<double>(iters));
     }
 
     // ---- helper to run a KD-tree backend over the SAME node sequence --------
@@ -235,7 +286,10 @@ int main(int argc, char** argv)
             nearestMs += ms_since(tn);
             if (nnIdx == gtNearest[it]) ++correct;
 
-            const SE2State nn     = steer(nodes[nnIdx], q);
+            // Every backend grows along the SAME canonical node sequence, so all
+            // trees hold identical points and recall stays well defined even for
+            // a backend whose metric picks a different nearest node.
+            const SE2State nn     = ref[it + 1];
             const double   nnp[3] = {nn.x, nn.y, nn.th};
 
             const auto tnr = clk::now();
@@ -290,7 +344,7 @@ int main(int argc, char** argv)
             nearestMs += ms_since(tn);
             if (nnIdx == gtNearest[it]) ++correct;
 
-            const SE2State nn     = steer(nodes[nnIdx], q);
+            const SE2State nn     = ref[it + 1];
             const double   nnp[3] = {nn.x, nn.y, nn.th};
             const auto     tnr = clk::now();
             std::vector<ResultItem<uint32_t, double>> near;
@@ -305,8 +359,72 @@ int main(int argc, char** argv)
             static_cast<double>(correct) / static_cast<double>(iters));
     };
 
+
+#ifdef HAVE_NIGH
+    // ---- nigh: incremental insertion, exact for its own Cartesian metric ----
+    auto runNigh = [&]()
+    {
+        namespace nigh = unc::robotics::nigh;
+        using Space    = nigh::metric::SE2Space<double>;
+        using State    = std::tuple<Eigen::Vector2d, double>;
+        struct Node
+        {
+            State    s;
+            uint32_t idx;
+        };
+        struct Key
+        {
+            const State& operator()(const Node& n) const { return n.s; }
+        };
+        nigh::Nigh<Node, Space, Key, nigh::NoThreadSafety, nigh::KDTreeBatch<>> nn;
+
+        auto mkstate = [](const SE2State& p)
+        { return State{Eigen::Vector2d(p.x, p.y), p.th}; };
+
+        std::vector<SE2State> nodes;
+        nodes.reserve(iters + 1);
+        nodes.push_back(ref[0]);
+        nn.insert(Node{mkstate(ref[0]), 0});
+
+        double nearestMs = 0, nearMs = 0, updMs = 0;
+        size_t correct = 0;
+        const auto t0 = clk::now();
+        for (size_t it = 0; it < iters; ++it)
+        {
+            const SE2State& q = w.samples[it];
+
+            const auto tn  = clk::now();
+            auto       res = nn.nearest(mkstate(q));
+            nearestMs += ms_since(tn);
+            const uint32_t nnIdx = res ? std::get<0>(*res).idx : 0;
+            // Scored against nigh's OWN metric ground truth.
+            if (nnIdx == gtNearestNigh[it]) ++correct;
+
+            const SE2State nn2 = ref[it + 1];
+
+            // Near set: nigh's radius is in its own (unsquared) metric units.
+            const auto tnr = clk::now();
+            std::vector<std::pair<Node, double>> near;
+            nn.nearest(near, mkstate(nn2), nodes.size(), kNearR);
+            nearMs += ms_since(tnr);
+
+            const auto tu = clk::now();
+            nodes.push_back(nn2);
+            nn.insert(Node{mkstate(nn2), static_cast<uint32_t>(nodes.size() - 1)});
+            updMs += ms_since(tu);
+        }
+        const double total = ms_since(t0);
+        printf(
+            "nigh,%zu,%.1f,%.1f,%.1f,%.1f,%.4f\n", nodes.size(), nearestMs, nearMs, updMs, total,
+            static_cast<double>(correct) / static_cast<double>(iters));
+    };
+#endif  // HAVE_NIGH
+
     runIncremental("incremental", false);
     runRebuild();
+#ifdef HAVE_NIGH
+    runNigh();
+#endif
     runIncremental("naive-eucl", true);
 
     return 0;
