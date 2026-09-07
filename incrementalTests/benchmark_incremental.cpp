@@ -19,6 +19,7 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <deque>
 #include <string>
 
 #include <nanoflann.hpp>
@@ -120,6 +121,8 @@ static void runForest(const FrameStream& fs, size_t maxQ, MethodStats& st)
         st.live_points.push_back(live.size());
         st.phys_points.push_back(phys);
     }
+    st.rss_kb_end  = currentRssKb();
+    st.rss_kb_peak = peakRssKb();
 }
 
 static void runIncremental(
@@ -156,6 +159,127 @@ static void runIncremental(
         st.live_points.push_back(index.size());
         st.phys_points.push_back(index.physicalSize());
     }
+    st.rss_kb_end  = currentRssKb();
+    st.rss_kb_peak = peakRssKb();
+}
+
+// Ablation: same index and parameters, but the window is trimmed point by point
+// instead of by a single certified box trim.
+//
+// This is inherently O(live set): without removeOutsideBox the index cannot
+// certify that a whole subtree lies outside the keep box, so the caller must
+// test every live point it holds. We keep the per-frame index ranges a user
+// would keep, test each still-live point, and drop ranges once fully drained,
+// which avoids enumerating the tree itself but not the linear scan.
+static void runIncrementalNoBoxTrim(
+    const FrameStream& fs, size_t maxQ, float aBal, float aDel, const std::string& name,
+    MethodStats& st)
+{
+    st.name = name;
+    GrowingCloud cloud;
+    inc_t        index(3, cloud, KDTreeIncrementalIndexParams(aBal, aDel));
+    Timer        timer;
+    // Per-frame [lo, hi) ranges, oldest first, with the count still live.
+    struct Range
+    {
+        uint32_t lo, hi;
+        size_t   alive;
+    };
+    std::deque<Range>     frames;
+    std::vector<uint8_t>  dead;  // per dataset index
+
+    for (size_t f = 0; f < fs.scans.size(); ++f)
+    {
+        const auto keep = makeKeepBox(fs.sensor[f].data(), fs.keepHalf);
+        auto outside = [&keep](const std::array<float, 3>& p)
+        {
+            return p[0] < keep.lo[0] || p[0] > keep.hi[0] || p[1] < keep.lo[1] ||
+                   p[1] > keep.hi[1] || p[2] < keep.lo[2] || p[2] > keep.hi[2];
+        };
+
+        timer.tic();
+        const uint32_t start = static_cast<uint32_t>(cloud.pts.size());
+        for (const auto& p : fs.scans[f]) cloud.pts.push_back(p);
+        const uint32_t end = static_cast<uint32_t>(cloud.pts.size());
+        dead.resize(cloud.pts.size(), 0);
+        if (end > start)
+        {
+            index.addPoints(start, end - 1);
+            frames.push_back(Range{start, end, size_t(end - start)});
+        }
+
+        // Test every still-live point against the keep box.
+        for (auto& r : frames)
+        {
+            if (r.alive == 0) continue;
+            for (uint32_t idx = r.lo; idx < r.hi; ++idx)
+            {
+                if (dead[idx]) continue;
+                if (outside(cloud.pts[idx]))
+                {
+                    index.removePoint(idx);
+                    dead[idx] = 1;
+                    --r.alive;
+                }
+            }
+        }
+        while (!frames.empty() && frames.front().alive == 0) frames.pop_front();
+        st.update_ms.push_back(timer.toc_ms());
+
+        const Scan q = makeQueries(fs.scans[f], maxQ);
+        st.num_queries_per_frame = q.size();
+        uint32_t ri[K];
+        float    rd[K];
+        timer.tic();
+        for (const auto& qp : q) (void)index.knnSearch(qp.data(), K, ri, rd);
+        st.query_ms.push_back(timer.toc_ms());
+
+        st.live_points.push_back(index.size());
+        st.phys_points.push_back(index.physicalSize());
+    }
+    st.rss_kb_end  = currentRssKb();
+    st.rss_kb_peak = peakRssKb();
+}
+
+// Ablation: partial rebuilds disabled, so the tree never rebalances and never
+// physically reclaims tombstoned nodes.
+static void runIncrementalNoRebuild(
+    const FrameStream& fs, size_t maxQ, float aBal, float aDel, const std::string& name,
+    MethodStats& st)
+{
+    st.name = name;
+    GrowingCloud cloud;
+    inc_t        index(3, cloud, KDTreeIncrementalIndexParams(aBal, aDel));
+    index.setInlineRebuild(false);
+    Timer timer;
+
+    for (size_t f = 0; f < fs.scans.size(); ++f)
+    {
+        const auto keep = makeKeepBox(fs.sensor[f].data(), fs.keepHalf);
+        inc_t::BoundingBox keepBox;
+        for (int d = 0; d < 3; ++d) { keepBox[d].low = keep.lo[d]; keepBox[d].high = keep.hi[d]; }
+
+        timer.tic();
+        const uint32_t start = static_cast<uint32_t>(cloud.pts.size());
+        for (const auto& p : fs.scans[f]) cloud.pts.push_back(p);
+        const uint32_t end = static_cast<uint32_t>(cloud.pts.size());
+        if (end > start) index.addPoints(start, end - 1);
+        index.removeOutsideBox(keepBox);
+        st.update_ms.push_back(timer.toc_ms());
+
+        const Scan q = makeQueries(fs.scans[f], maxQ);
+        st.num_queries_per_frame = q.size();
+        uint32_t ri[K];
+        float    rd[K];
+        timer.tic();
+        for (const auto& qp : q) (void)index.knnSearch(qp.data(), K, ri, rd);
+        st.query_ms.push_back(timer.toc_ms());
+
+        st.live_points.push_back(index.size());
+        st.phys_points.push_back(index.physicalSize());
+    }
+    st.rss_kb_end  = currentRssKb();
+    st.rss_kb_peak = peakRssKb();
 }
 
 using inc_mt_t = KDTreeSingleIndexIncrementalAdaptorMT<
@@ -201,11 +325,14 @@ static void runIncrementalMT(
         st.live_points.push_back(index.size());
         st.phys_points.push_back(index.physicalSize());
     }
+    st.rss_kb_end  = currentRssKb();
+    st.rss_kb_peak = peakRssKb();
 }
 
 static void runRebuild(const FrameStream& fs, size_t maxQ, unsigned threads, MethodStats& st)
 {
-    st.name = threads > 1 ? "rebuild_mt" : "rebuild";
+    // threads==0 means "use all cores", so only threads==1 is the serial variant.
+    st.name = threads == 1 ? "rebuild" : "rebuild_mt";
     GrowingCloud window;  // compacted: only current-window points
     Timer        timer;
 
@@ -236,6 +363,8 @@ static void runRebuild(const FrameStream& fs, size_t maxQ, unsigned threads, Met
         st.live_points.push_back(window.pts.size());
         st.phys_points.push_back(window.pts.size());
     }
+    st.rss_kb_end  = currentRssKb();
+    st.rss_kb_peak = peakRssKb();
 }
 
 static void runIkd(const FrameStream& fs, size_t maxQ, MethodStats& st)
@@ -303,6 +432,8 @@ static void runIkd(const FrameStream& fs, size_t maxQ, MethodStats& st)
         st.live_points.push_back(static_cast<size_t>(tree.validnum()));
         st.phys_points.push_back(static_cast<size_t>(tree.size()));
     }
+    st.rss_kb_end  = currentRssKb();
+    st.rss_kb_peak = peakRssKb();
 }
 
 // ===========================================================================
@@ -356,11 +487,12 @@ static void dumpCsv(const std::vector<MethodStats>& all, const std::string& path
 {
     FILE* fp = fopen(path.c_str(), "w");
     if (!fp) return;
-    fprintf(fp, "method,frame,update_ms,query_ms,live,phys\n");
+    fprintf(fp, "method,frame,update_ms,query_ms,live,phys,rss_kb_end,rss_kb_peak\n");
     for (const auto& s : all)
         for (size_t f = 0; f < s.update_ms.size(); ++f)
-            fprintf(fp, "%s,%zu,%.4f,%.4f,%zu,%zu\n", s.name.c_str(), f, s.update_ms[f],
-                    s.query_ms[f], s.live_points[f], s.phys_points[f]);
+            fprintf(fp, "%s,%zu,%.4f,%.4f,%zu,%zu,%zu,%zu\n", s.name.c_str(), f, s.update_ms[f],
+                    s.query_ms[f], s.live_points[f], s.phys_points[f], s.rss_kb_end,
+                    s.rss_kb_peak);
     fclose(fp);
     printf("Wrote per-frame CSV: %s\n", path.c_str());
 }
@@ -397,21 +529,38 @@ int main(int argc, char** argv)
            src, fs.scans.size(), keepHalf, dx, fs.scans.empty() ? 0 : totalPts / fs.scans.size(), K,
            maxQ);
 
-    auto log = [](const char* m) { fprintf(stderr, "  running %s ...\n", m); fflush(stderr); };
+    // Optional filter: BENCH_ONLY=substr runs only the methods whose name
+    // contains substr. Used by the ablation sweep to re-run just the
+    // incremental variants under a different build, without repeating the slow
+    // rebuild/forest/ikd baselines.
+    const char* onlyEnv = getenv("BENCH_ONLY");
+    const std::string only = onlyEnv ? onlyEnv : "";
+    auto want = [&only](const char* m)
+    { return only.empty() || std::string(m).find(only) != std::string::npos; };
+
+    auto log = [](const char* m)
+    {
+        resetPeakRss();  // so each method's VmHWM reflects only its own run
+        fprintf(stderr, "  running %s ...\n", m);
+        fflush(stderr);
+    };
 
     std::vector<MethodStats> all;
+    if (want("forest"))
     {
         log("forest");
         MethodStats s;
         runForest(fs, maxQ, s);
         all.push_back(s);
     }
+    if (want("rebuild"))
     {
         log("rebuild");
         MethodStats s;
         runRebuild(fs, maxQ, 1, s);
         all.push_back(s);
     }
+    if (want("rebuild_mt"))
     {
         log("rebuild_mt");
         MethodStats s;
@@ -428,17 +577,35 @@ int main(int argc, char** argv)
     };
     for (const auto& c : cfgs)
     {
+        if (!want(c.tag)) continue;
         log(c.tag);
         MethodStats s;
         runIncremental(fs, maxQ, c.bal, c.del, c.tag, s);
         all.push_back(s);
     }
+    // Ablation of the individual design choices (R2 of the revision).
+    if (want("inc_ablate_noboxtrim"))
+    {
+        log("inc_ablate_noboxtrim");
+        MethodStats s;
+        runIncrementalNoBoxTrim(fs, maxQ, 0.85f, 0.5f, "inc_ablate_noboxtrim", s);
+        all.push_back(s);
+    }
+    if (want("inc_ablate_norebuild"))
+    {
+        log("inc_ablate_norebuild");
+        MethodStats s;
+        runIncrementalNoRebuild(fs, maxQ, 0.85f, 0.5f, "inc_ablate_norebuild", s);
+        all.push_back(s);
+    }
+    if (want("inc_async"))
     {
         log("inc_async (MT)");
         MethodStats s;
         runIncrementalMT(fs, maxQ, 0.85f, 0.5f, "inc_async", s);
         all.push_back(s);
     }
+    if (want("ikd-Tree"))
     {
         log("ikd-Tree");
         MethodStats s;

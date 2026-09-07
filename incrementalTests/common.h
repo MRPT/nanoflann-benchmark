@@ -8,6 +8,8 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <cstring>
 #include <random>
 #include <vector>
 
@@ -70,7 +72,43 @@ struct MethodStats
     std::vector<size_t> live_points;  // logical live points after trim
     std::vector<size_t> phys_points;  // physical stored (incl tombstones)
     size_t              num_queries_per_frame = 0;
+    // Memory: resident set at the end of the run, and the process-wide high
+    // water mark reached while this method was the only index alive.
+    size_t rss_kb_end  = 0;
+    size_t rss_kb_peak = 0;
 };
+
+// Read a field of /proc/self/status in kB (Linux). Returns 0 if unavailable.
+inline size_t readProcStatusKb(const char* field)
+{
+    FILE* fp = fopen("/proc/self/status", "r");
+    if (!fp) return 0;
+    char   line[256];
+    size_t val = 0;
+    const size_t flen = strlen(field);
+    while (fgets(line, sizeof(line), fp))
+    {
+        if (strncmp(line, field, flen) == 0)
+        {
+            sscanf(line + flen, " %zu", &val);
+            break;
+        }
+    }
+    fclose(fp);
+    return val;
+}
+
+inline size_t currentRssKb() { return readProcStatusKb("VmRSS:"); }
+inline size_t peakRssKb() { return readProcStatusKb("VmHWM:"); }
+
+// Reset the kernel's high-water mark so the next method measures its own peak.
+inline void resetPeakRss()
+{
+    FILE* fp = fopen("/proc/self/clear_refs", "w");
+    if (!fp) return;
+    fputs("5\n", fp);  // 5 = reset VmHWM to the current VmRSS
+    fclose(fp);
+}
 
 // Sliding cube keep-region centered at sensor position (cx, cy, cz).
 struct KeepBox

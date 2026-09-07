@@ -1,0 +1,9 @@
+  running inc_ablate_noboxtrim ...
+Source: KITTI | frames=80 keepHalf=60.0 dx=1.50 avgScan=121550 k=5 queries/frame<=300
+
+(steady-state stats skip the first 26 warmup frames)
+
+method          upd_med[ms]  upd_p95[ms] upd_mean[ms]  qry_med[ms]     qry_us/q       live       phys
+--------------------------------------------------------------------------------------------------------------
+inc_ablate_noboxtrim    11999.146    35928.365    15613.234        2.253        7.449    4818272    4819489
+Wrote per-frame CSV: results_revision/ablation_f80_noboxtrim.csv
