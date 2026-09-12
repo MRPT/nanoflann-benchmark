@@ -19,32 +19,56 @@ from collections import defaultdict
 import matplotlib
 
 matplotlib.use("pgf")
+
+# Shared paper figure style, kept identical in every plot script so that all
+# panels print at the same text size. Figures are generated at their final
+# printed width (COL_W for a one-column figure, FULL_W for a figure*) and the
+# LaTeX source includes them without \\scalebox: scaling a .pgf scales its text
+# too, which is what makes font sizes differ from figure to figure.
+COL_W = 3.40   # \\columnwidth in inches
+FULL_W = 7.00  # \\textwidth in inches
+
 matplotlib.rcParams.update({
     "pgf.texsystem": "pdflatex",
     "text.usetex": False,
     "font.family": "serif",
-    "font.size": 9,
-    "legend.fontsize": 8,
-    "xtick.labelsize": 8,
-    "ytick.labelsize": 8,
-    "axes.labelsize": 9,
+    "font.size": 8,
+    "axes.titlesize": 8,
+    "axes.labelsize": 8,
+    "legend.fontsize": 7,
+    "xtick.labelsize": 7,
+    "ytick.labelsize": 7,
+    "lines.linewidth": 1.0,
     "pgf.rcfonts": False,
     "figure.autolayout": True,
 })
+
+# Okabe-Ito colorblind-safe palette; "proposed" is blue in every figure.
+CB = {
+    "blue": "#0072B2",
+    "vermillion": "#D55E00",
+    "green": "#009E73",
+    "orange": "#E69F00",
+    "sky": "#56B4E9",
+    "purple": "#CC79A7",
+    "gray": "#666666",
+}
 import matplotlib.pyplot as plt  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PAPER_FIGS = os.path.normpath(
-    os.path.join(HERE, "..", "..", "..", "papers", "nanoflann-paper",
+PAPER_FIGS = os.environ.get("PAPER_FIGS") or os.path.normpath(
+    os.path.join(HERE, "..", "..", "..", "papers", "paper-nanoflann",
                  "ieeeral", "figs"))
 PREVIEW = os.path.join(HERE, "figs")
 os.makedirs(PREVIEW, exist_ok=True)
 
+# (label, color, marker, linestyle); colors from the shared palette and one
+# line style per method, so the panels survive grayscale printing.
 STYLE = {
-    "proposed": ("proposed (exact)", "#1f6fb2", "o", "-"),
-    "naive":    ("naive Eucl.\\ 7-D (canon.)", "#d1622b", "^", "--"),
-    "naive_sc": ("naive Eucl.\\ 7-D (sign-cont.)", "#b03060", "v", "--"),
-    "rerank":   ("3-D tree + re-rank", "#2c8c3c", "s", "-."),
+    "proposed": ("proposed (exact)", CB["blue"], "o", "-"),
+    "naive":    ("naive Eucl.\\ 7-D (canon.)", CB["vermillion"], "^", "--"),
+    "naive_sc": ("naive Eucl.\\ 7-D (sign-cont.)", CB["purple"], "v", ":"),
+    "rerank":   ("3-D tree + re-rank", CB["green"], "s", "-."),
 }
 
 
@@ -104,21 +128,24 @@ def fig_missmap(seq, figname):
             zs.append(float(r["z"]))
             miss.append(float(r["recall_naive_sc"]) < 1.0)
     fig, ax = plt.subplots()
-    ax.plot(xs, zs, color="0.7", lw=0.8, zorder=1,
+    ax.plot(xs, zs, color=CB["gray"], lw=0.8, zorder=1,
             label=f"trajectory ({seq})")
     mx = [x for x, m in zip(xs, miss) if m]
     mz = [z for z, m in zip(zs, miss) if m]
-    ax.scatter(mx, mz, s=4, color="#b03060", zorder=2,
-               label="naive tree: wrong candidates")
+    ax.scatter(mx, mz, s=4, color=CB["vermillion"], zorder=2,
+               label="naive tree:\nwrong candidates")
     ax.set_xlabel("x [m]")
     ax.set_ylabel("z [m]" if seq.isdigit() else "y [m]")
     ax.set_aspect("equal")
     ax.grid(alpha=0.3)
-    ax.legend(loc="upper left")
+    # the map is square, the column is wide: the legend goes in the margin the
+    # equal aspect ratio leaves free, instead of on top of the trajectory.
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False,
+              handletextpad=0.5, borderaxespad=0.0)
     n_miss = sum(miss)
     print(f"{seq} misses: {n_miss}/{len(miss)} queries "
           f"({100.0*n_miss/len(miss):.1f}%)")
-    savefig(fig, figname, 3.45, 2.9)
+    savefig(fig, figname, COL_W, 1.75)
 
 
 def all_missmaps(rows):
