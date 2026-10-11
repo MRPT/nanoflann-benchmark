@@ -17,7 +17,7 @@ include(FetchContent)
 
 # ---- proposed library: nanoflann 2.0 dev header (manifold support) ----------
 set(NANOFLANN_INCLUDE_DIR "$ENV{HOME}/code/nanoflann/include"
-    CACHE PATH "Path to the proposed library's header directory (branch nanoflann2)")
+    CACHE PATH "Path to the proposed library's header directory (nanoflann >= 2.0.0)")
 
 find_package(Eigen3 REQUIRED)
 
@@ -32,7 +32,7 @@ option(WITH_NIGH "Benchmark against nigh" ON)
 if(WITH_NIGH)
   FetchContent_Declare(nigh
     GIT_REPOSITORY https://github.com/UNC-Robotics/nigh.git
-    GIT_TAG master)
+    GIT_TAG 4e1fad64b2ffecff0449d920dca332bd2eac4aa1)
   FetchContent_MakeAvailable(nigh)
   target_include_directories(bench_manifold PRIVATE ${nigh_SOURCE_DIR}/src)
   target_compile_definitions(bench_manifold PRIVATE HAVE_NIGH)
@@ -43,7 +43,7 @@ option(WITH_MPNN "Benchmark against MPNN" ON)
 if(WITH_MPNN)
   FetchContent_Declare(mpnn
     GIT_REPOSITORY https://github.com/drewm1980/mpnn.git
-    GIT_TAG master)
+    GIT_TAG da935c1c7f2d8fca533c00eb04d9362aa146924d)
   FetchContent_Populate(mpnn)
   file(GLOB MPNN_SRC ${mpnn_SOURCE_DIR}/src/*.cpp)
   add_library(mpnn_DNN STATIC ${MPNN_SRC})

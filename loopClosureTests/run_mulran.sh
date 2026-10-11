@@ -4,7 +4,7 @@
 # can be plotted together; run run.sh (KITTI) first for a fresh CSV.
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
-NANOFLANN_INC="${NANOFLANN_INCLUDE_DIR:-$HOME/code/nanoflann-manifold/include}"
+NANOFLANN_INC="${NANOFLANN_INCLUDE_DIR:-$HOME/code/nanoflann/include}"
 MULRAN="${MULRAN_BASE_DIR:-/media/jlblanco/portable/MulRan}"
 # Sequences with revisits; adjust to what is on disk.
 SEQS="${MULRAN_SEQS:-KAIST01 DCC01 Riverside01}"

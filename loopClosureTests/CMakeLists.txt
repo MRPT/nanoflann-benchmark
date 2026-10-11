@@ -14,7 +14,7 @@ endif()
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native")
 
 # ---- proposed library: nanoflann 2.0 dev header (manifold support) ----------
-set(NANOFLANN_INCLUDE_DIR "$ENV{HOME}/code/nanoflann-manifold/include"
+set(NANOFLANN_INCLUDE_DIR "$ENV{HOME}/code/nanoflann/include"
     CACHE PATH "Path to the proposed library's header directory (manifold branch)")
 
 add_executable(bench_loopclosure bench_loopclosure.cpp)

@@ -13,7 +13,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native")
 
-# Path to the proposed library's header (branch nanoflann2).
+# Path to the proposed library's header (nanoflann >= 2.0.0).
 set(NANOFLANN_INCLUDE_DIR "$ENV{HOME}/code/nanoflann/include"
     CACHE PATH "Path to the proposed library's header directory")
 
@@ -35,7 +35,7 @@ if(WITH_NIGH)
     include(FetchContent)
     FetchContent_Declare(nigh
       GIT_REPOSITORY https://github.com/UNC-Robotics/nigh.git
-      GIT_TAG master)
+      GIT_TAG 4e1fad64b2ffecff0449d920dca332bd2eac4aa1)
     FetchContent_MakeAvailable(nigh)
     target_include_directories(bench_rrt_se2 PRIVATE ${nigh_SOURCE_DIR}/src)
     target_link_libraries(bench_rrt_se2 PRIVATE Eigen3::Eigen)

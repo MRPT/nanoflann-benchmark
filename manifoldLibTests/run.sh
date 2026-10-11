@@ -4,10 +4,10 @@ set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
 NANOFLANN_INC="${NANOFLANN_INCLUDE_DIR:-$HOME/code/nanoflann/include}"
 
-# Ensure the proposed (nanoflann2) header is present.
+# Requires nanoflann >= 2.0.0 (manifold topology).
 if [ ! -f "$NANOFLANN_INC/nanoflann.hpp" ]; then
   echo "nanoflann header not found at $NANOFLANN_INC"
-  echo "Check out the branch with: git -C \$HOME/code/nanoflann checkout nanoflann2"
+  echo "Use nanoflann >= 2.0.0 (https://github.com/jlblancoc/nanoflann)"
   exit 1
 fi
 

@@ -13,7 +13,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native")
 
-set(NANOFLANN_INCLUDE_DIR "$ENV{HOME}/code/nanoflann-manifold/include"
+set(NANOFLANN_INCLUDE_DIR "$ENV{HOME}/code/nanoflann/include"
     CACHE PATH "Path to the proposed library's header directory")
 
 add_executable(bench_overhead_on bench_overhead.cpp)

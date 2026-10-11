@@ -25,19 +25,14 @@ only timings are comparable; each is verified exact against its own metric.
 
 ## Important: the `proposed` library needs the manifold branch
 
-The manifold feature (`Manifold_Adaptor`, `SO3`, `SE3`, `Product<>`) lives on the
-`feat/manifold-topology` branch of nanoflann, not `master`. Create a worktree and
-point the build at it:
-
-```bash
-git -C $HOME/code/nanoflann worktree add $HOME/code/nanoflann-manifold feat/manifold-topology
-```
+The manifold feature (`Manifold_Adaptor`, `SO3`, `SE3`, `Product<>`) requires
+nanoflann >= 2.0.0.
 
 ## Build & run
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-      -DNANOFLANN_INCLUDE_DIR=$HOME/code/nanoflann-manifold/include
+      -DNANOFLANN_INCLUDE_DIR=$HOME/code/nanoflann/include
 cmake --build build --target bench_manifold -j
 ./build/bench_manifold > results/manifold_libs.csv
 python3 plot_manifold_libs.py   # writes .pgf into the paper figs/ + .png previews

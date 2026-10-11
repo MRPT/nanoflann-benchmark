@@ -24,5 +24,4 @@ Outputs: `results/loopclosure.csv`, per-query miss dumps
 `results/perquery_*.csv`, and `.pgf` figures + the LaTeX table body for the
 paper (`loopclosure_recall.pgf`, `loopclosure_missmap.pgf`).
 
-Needs the manifold-branch header worktree:
-`git -C ~/code/nanoflann worktree add ~/code/nanoflann-manifold feat/manifold-topology`.
+Needs nanoflann >= 2.0.0.

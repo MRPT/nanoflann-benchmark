@@ -1,13 +1,13 @@
 #!/bin/bash
-# Build and run the C5 loop-closure retrieval benchmark, then plot.
+# Build and run the loop-closure retrieval benchmark, then plot.
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
-NANOFLANN_INC="${NANOFLANN_INCLUDE_DIR:-$HOME/code/nanoflann-manifold/include}"
+NANOFLANN_INC="${NANOFLANN_INCLUDE_DIR:-$HOME/code/nanoflann/include}"
 KITTI="${KITTI_BASE_DIR:-$HOME/datasets/kitti}"
 
 if [ ! -f "$NANOFLANN_INC/nanoflann.hpp" ]; then
-  echo "Manifold header not found at $NANOFLANN_INC"
-  echo "Create it with: git -C \$HOME/code/nanoflann worktree add \$HOME/code/nanoflann-manifold feat/manifold-topology"
+  echo "nanoflann header not found at $NANOFLANN_INC"
+  echo "Use nanoflann >= 2.0.0 (https://github.com/jlblancoc/nanoflann)"
   exit 1
 fi
 if [ ! -f "$KITTI/poses/00-tum.txt" ]; then

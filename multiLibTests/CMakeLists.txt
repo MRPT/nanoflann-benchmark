@@ -86,7 +86,7 @@ option(WITH_FASTANN "Benchmark against fastann" ON)
 if(WITH_FASTANN)
   FetchContent_Declare(fastann
     GIT_REPOSITORY https://github.com/philbinj/fastann.git
-    GIT_TAG master)
+    GIT_TAG 1f65a4d1f683ff53d933505014eb45b051a875b3)
   FetchContent_MakeAvailable(fastann)
   if(TARGET fastann)
     target_link_libraries(bench PRIVATE fastann)
@@ -100,7 +100,7 @@ option(WITH_LIBKDTREE "Benchmark against libkdtree++" ON)
 if(WITH_LIBKDTREE)
   FetchContent_Declare(libkdtree
     GIT_REPOSITORY https://github.com/nvmd/libkdtree.git
-    GIT_TAG master)
+    GIT_TAG c83b033f498ae8eaa0459e280e54e96b517e401f)
   FetchContent_Populate(libkdtree)
   target_include_directories(bench PRIVATE ${libkdtree_SOURCE_DIR})
   target_compile_definitions(bench PRIVATE HAVE_LIBKDTREE)
