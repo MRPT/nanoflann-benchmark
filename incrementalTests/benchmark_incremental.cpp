@@ -367,12 +367,13 @@ static void runRebuild(const FrameStream& fs, size_t maxQ, unsigned threads, Met
     st.rss_kb_peak = peakRssKb();
 }
 
-static void runIkd(const FrameStream& fs, size_t maxQ, MethodStats& st)
+static void runIkd(const FrameStream& fs, size_t maxQ, float bal, float del, const char* name,
+                   MethodStats& st)
 {
-    st.name = "ikd-Tree";
+    st.name = name;
     // Heap-allocate: KD_TREE embeds a ~tens-of-MB operation queue by value, so a
     // stack instance overflows the stack.
-    auto  treePtr = std::make_shared<KD_TREE<ikdTree_PointType>>(0.5f, 0.7f, 0.2f);
+    auto  treePtr = std::make_shared<KD_TREE<ikdTree_PointType>>(del, bal, 0.2f);
     auto& tree    = *treePtr;
     Timer timer;
     bool  built = false;
@@ -574,6 +575,7 @@ int main(int argc, char** argv)
         {0.70f, 0.30f, "inc_b70_d30"},
         {0.65f, 0.30f, "inc_b65_d30"},
         {0.85f, 0.50f, "inc_b85_d50"},
+        {0.70f, 0.50f, "inc_b70_d50"},  // same thresholds as ikd-Tree defaults
     };
     for (const auto& c : cfgs)
     {
@@ -605,11 +607,27 @@ int main(int argc, char** argv)
         runIncrementalMT(fs, maxQ, 0.85f, 0.5f, "inc_async", s);
         all.push_back(s);
     }
+    // Same thresholds as ikd-Tree, which also offloads large rebuilds to a thread.
+    if (want("inc_async_b70"))
+    {
+        log("inc_async_b70 (MT)");
+        MethodStats s;
+        runIncrementalMT(fs, maxQ, 0.70f, 0.5f, "inc_async_b70", s);
+        all.push_back(s);
+    }
     if (want("ikd-Tree"))
     {
         log("ikd-Tree");
         MethodStats s;
-        runIkd(fs, maxQ, s);
+        runIkd(fs, maxQ, 0.7f, 0.5f, "ikd-Tree", s);
+        all.push_back(s);
+    }
+    // ikd-Tree with our default balance threshold, for an alpha-matched comparison.
+    if (want("ikdb85"))
+    {
+        log("ikdb85");
+        MethodStats s;
+        runIkd(fs, maxQ, 0.85f, 0.5f, "ikdb85", s);
         all.push_back(s);
     }
 

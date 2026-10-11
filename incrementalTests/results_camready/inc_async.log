@@ -1,0 +1,11 @@
+  running inc_async (MT) ...
+  running inc_async_b70 (MT) ...
+Source: KITTI | frames=80 keepHalf=60.0 dx=1.50 avgScan=121550 k=5 queries/frame<=300
+
+(steady-state stats skip the first 26 warmup frames)
+
+method          upd_med[ms]  upd_p95[ms] upd_mean[ms]  qry_med[ms]     qry_us/q       live       phys
+--------------------------------------------------------------------------------------------------------------
+inc_async            72.878      129.744      106.046        2.932       10.526    4818272    9441129
+inc_async_b70        72.485      129.338      111.002        2.951       10.341    4818272    9360273
+Wrote per-frame CSV: results_camready/inc_async.csv

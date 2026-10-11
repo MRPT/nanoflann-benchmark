@@ -1,0 +1,11 @@
+  running ikdb85 ...
+Source: KITTI | frames=80 keepHalf=60.0 dx=1.50 avgScan=121550 k=5 queries/frame<=300
+Multi thread started 
+Rebuild thread terminated normally
+
+(steady-state stats skip the first 26 warmup frames)
+
+method          upd_med[ms]  upd_p95[ms] upd_mean[ms]  qry_med[ms]     qry_us/q       live       phys
+--------------------------------------------------------------------------------------------------------------
+ikdb85              246.108      338.367      254.935        2.769       11.917    4818272    9262842
+Wrote per-frame CSV: results_camready/ikdb85.csv

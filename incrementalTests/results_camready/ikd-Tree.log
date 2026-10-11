@@ -1,0 +1,11 @@
+  running ikd-Tree ...
+Source: KITTI | frames=80 keepHalf=60.0 dx=1.50 avgScan=121550 k=5 queries/frame<=300
+Multi thread started 
+Rebuild thread terminated normally
+
+(steady-state stats skip the first 26 warmup frames)
+
+method          upd_med[ms]  upd_p95[ms] upd_mean[ms]  qry_med[ms]     qry_us/q       live       phys
+--------------------------------------------------------------------------------------------------------------
+ikd-Tree            262.045      338.476      267.945        3.457       13.817    4818272    9260468
+Wrote per-frame CSV: results_camready/ikd-Tree.csv

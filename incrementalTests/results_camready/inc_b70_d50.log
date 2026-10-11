@@ -1,0 +1,9 @@
+  running inc_b70_d50 ...
+Source: KITTI | frames=80 keepHalf=60.0 dx=1.50 avgScan=121550 k=5 queries/frame<=300
+
+(steady-state stats skip the first 26 warmup frames)
+
+method          upd_med[ms]  upd_p95[ms] upd_mean[ms]  qry_med[ms]     qry_us/q       live       phys
+--------------------------------------------------------------------------------------------------------------
+inc_b70_d50         200.614     1971.032      450.785        2.092        7.110    4818272    4945189
+Wrote per-frame CSV: results_camready/inc_b70_d50.csv
